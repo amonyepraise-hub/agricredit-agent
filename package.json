@@ -1,0 +1,10 @@
+{
+  "name": "agricredit-agent-mcp-deps",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pinned external MCP servers used by AgriCredit Agent (installed with `npm ci`).",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@modelcontextprotocol/server-filesystem": "2026.8.31"
+  }
+}

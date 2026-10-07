@@ -1,0 +1,41 @@
+{
+  "policy_version": "agricredit-policy-2026.10-v1",
+  "description": "Decision thresholds for AgriCredit Agent. Read by the agent through the official MCP filesystem server and by agricredit-mcp's draft guard. Changing this file changes advisories; every advisory records policy_version in its assumptions.",
+  "tool_retry": {
+    "max_attempts": 2
+  },
+  "weather": {
+    "lookback_days": 120,
+    "allow_cache_fallback": true,
+    "max_cached_age_days_for_seasonal_recommendation": 21,
+    "confidence_penalty_for_cache": 0.15
+  },
+  "market": {
+    "lookback_weeks": 26,
+    "stale_recovery": "alternate_centre",
+    "max_alternate_centres": 1,
+    "alternate_centres": {
+      "Bohicon-Market": "Dassa-Market",
+      "Dassa-Market": "Glazoue-Market",
+      "Glazoue-Market": "Dassa-Market",
+      "Parakou-Market": "Glazoue-Market",
+      "Malanville-Market": "Parakou-Market"
+    },
+    "conflict_policy": "never_average_or_pick; request officer verification",
+    "price_drop_warning_pct": -10.0
+  },
+  "repayment": {
+    "require_history": true
+  },
+  "yield": {
+    "min_seasons": 2
+  },
+  "decision": {
+    "pd_recommend_max": 0.10,
+    "pd_no_recommendation_min": 0.35,
+    "min_base_capacity_for_recommend": 1.2,
+    "min_combined_capacity_for_recommend": 1.0,
+    "min_reduced_offer_fcfa": 40000
+  },
+  "forbidden_decision_terms": ["APPROVED CREDIT", "DISBURSE CREDIT", "LOAN ACCEPTED", "CREDIT APPROVED", "DISBURSE"]
+}

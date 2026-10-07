@@ -1,0 +1,14 @@
+# Untested in the original build environment (see README "Docker"). Tested path: ./run_demo.sh
+services:
+  agricredit:
+    build: .
+    ports:
+      - "8501:8501"
+    environment:
+      AGRICREDIT_LLM_BACKEND: ${AGRICREDIT_LLM_BACKEND:-ollama}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b-instruct}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./logs:/app/logs

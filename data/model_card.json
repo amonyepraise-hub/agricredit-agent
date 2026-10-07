@@ -1,0 +1,67 @@
+{
+  "model_version": "pd-logreg-calibrated-v1",
+  "production_choice": "logistic_regression_calibrated",
+  "selection_rule": "Prefer the calibrated logistic regression (exact per-feature log-odds explanations) unless gradient boosting beats it by more than 0.02 mean AUC or 0.01 mean Brier over 5x3 repeated stratified CV.",
+  "selection_rule_satisfied_by_lr": true,
+  "note": null,
+  "cv_metrics": {
+    "logistic_regression_calibrated": {
+      "auc_mean": 0.8038,
+      "brier_mean": 0.0825,
+      "ece_mean": 0.0286,
+      "auc_std": 0.0332,
+      "brier_std": 0.004,
+      "ece_std": 0.007
+    },
+    "gradient_boosting_calibrated": {
+      "auc_mean": 0.8029,
+      "brier_mean": 0.0841,
+      "ece_mean": 0.0239,
+      "auc_std": 0.0279,
+      "brier_std": 0.0041,
+      "ece_std": 0.009
+    }
+  },
+  "cv_scheme": "RepeatedStratifiedKFold(n_splits=5, n_repeats=3)",
+  "n_samples": 2611,
+  "default_rate": 0.1145,
+  "features": [
+    "repayment_rate",
+    "late_rate",
+    "default_count",
+    "max_days_overdue",
+    "n_loans",
+    "yield_ratio",
+    "yield_cv",
+    "yield_trend",
+    "area_ha",
+    "n_seasons",
+    "price_anomaly_pct",
+    "price_volatility",
+    "rainfall_anomaly_pct",
+    "drought",
+    "log_amount",
+    "obligations_to_debt_service",
+    "base_capacity",
+    "combined_capacity"
+  ],
+  "data_quality_signals_handled_by_policy_not_model": [
+    "repayment_age_days",
+    "missing_feature_count",
+    "conflicting_record_count"
+  ],
+  "label_source": "SYNTHETIC outcome simulator in risk/train.py (latent reliability + capacity + drought). Metrics measure recovery of a known synthetic process, NOT real-world predictive performance.",
+  "excluded_households": [
+    "HH-00001",
+    "HH-00002",
+    "HH-00004",
+    "HH-00005",
+    "HH-00006",
+    "HH-00007",
+    "HH-00008",
+    "HH-00010",
+    "HH-00025",
+    "HH-00099",
+    "HH-00421"
+  ]
+}

@@ -1,0 +1,13 @@
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+# generated deterministically by `make data train` (seeded)
+data/agricredit.db
+data/risk_model.joblib
+data/.integrity_key
+evals/.work/
+fs_mcp_root/audit_exports/*.json
+!fs_mcp_root/audit_exports/.gitkeep
