@@ -13,7 +13,12 @@ cd "$(dirname "$0")/.."
 
 CASE=${1:-BEN-0421}
 [ -f .env ] || cp .env.example .env
+# Values given on the command line (e.g. OLLAMA_MODEL=qwen2.5:3b-instruct ./scripts/...) win over .env.
+_CLI_MODEL=${OLLAMA_MODEL:-}; _CLI_BASE=${OLLAMA_BASE_URL:-}; _CLI_TIMEOUT=${AGRICREDIT_LLM_TIMEOUT_S:-}
 set -a; . ./.env; set +a
+[ -n "$_CLI_MODEL" ] && export OLLAMA_MODEL="$_CLI_MODEL"
+[ -n "$_CLI_BASE" ] && export OLLAMA_BASE_URL="$_CLI_BASE"
+[ -n "$_CLI_TIMEOUT" ] && export AGRICREDIT_LLM_TIMEOUT_S="$_CLI_TIMEOUT"
 export AGRICREDIT_LLM_BACKEND=ollama
 MODEL=${OLLAMA_MODEL:-qwen2.5:7b-instruct}
 BASE=${OLLAMA_BASE_URL:-http://localhost:11434}

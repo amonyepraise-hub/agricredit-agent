@@ -48,7 +48,7 @@ make evals                                   # re-runs all evaluation tasks with
 
 If no Ollama server answers, `run_demo.sh` falls back to `stub`: a deterministic stand-in that is **not a language model**, labelled as such in the dashboard, logs and advisories. It exists so the graph, MCP servers, risk model, gate and audit trail can be inspected and tested without a model runtime. vLLM or llama.cpp serving Qwen also work through `AGRICREDIT_LLM_BACKEND=openai_compatible`.
 
-**No GPU?** `qwen2.5:7b-instruct` runs on CPU with about 8 GB of free RAM, but each of the two LLM calls can take a few minutes. Raise `AGRICREDIT_LLM_TIMEOUT_S` in `.env` (for example to 600) or use `OLLAMA_MODEL=qwen2.5:3b-instruct`. The model identifier and digest are recorded in every run either way.
+**No GPU?** `qwen2.5:7b-instruct` runs on CPU with about 8 GB of free RAM, but each of the two LLM calls can take a few minutes. Raise `AGRICREDIT_LLM_TIMEOUT_S` in `.env` (for example to 600), or run the smaller model with `OLLAMA_MODEL=qwen2.5:3b-instruct ./scripts/run_open_weight_task.sh`. The model identifier and digest are recorded in every run either way.
 
 ### On Windows
 
@@ -56,7 +56,7 @@ Native Windows has not been tested. Use WSL 2, where the tested Linux path appli
 
 ```bash
 # in PowerShell (admin), once:  wsl --install -d Ubuntu      then open the Ubuntu terminal
-sudo apt update && sudo apt install -y python3-venv git curl
+sudo apt update && sudo apt install -y python3-venv git curl unzip make zstd
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt install -y nodejs
 curl -fsSL https://ollama.com/install.sh | sh          # Ollama inside WSL
 git clone <this repo> agricredit-agent && cd agricredit-agent
