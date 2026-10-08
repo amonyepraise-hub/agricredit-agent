@@ -11,3 +11,4 @@ data/.integrity_key
 evals/.work/
 fs_mcp_root/audit_exports/*.json
 !fs_mcp_root/audit_exports/.gitkeep
+*.egg-info/

@@ -1,3 +1,0 @@
-[console_scripts]
-agricredit = agricredit.cli.main:main
-agricredit-mcp = agricredit.mcp_server.server:main

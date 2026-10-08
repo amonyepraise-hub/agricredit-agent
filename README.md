@@ -69,7 +69,7 @@ Clone into the WSL home directory (`~`), not `/mnt/c/...`: the Windows drive is 
 
 ## Verification status
 
-What was and was not verified in the build environment (a cloud sandbox without GPU, Docker Hub or model-host access):
+Verified in two places: the build environment (a cloud sandbox without GPU, Docker Hub or model-host access) and a CPU-only Windows laptop running Ubuntu 24.04 under WSL 2 (7.7 GB RAM available to Linux, no GPU).
 
 | Requirement | Status | Evidence |
 |---|---|---|
@@ -79,11 +79,11 @@ What was and was not verified in the build environment (a cloud sandbox without 
 | Risk model, stress tests, evidence citations | Verified | `tests/test_financial.py`, `data/model_card.json`, EVALS metrics |
 | Tool-call and audit logging | Verified | `logs/*.jsonl` from a real demo run; EVALS log-completeness metric |
 | Approval gate: unauthorized releases blocked, change voids approval | Verified | E11, E12, `tests/test_mcp_server.py` |
-| **Open-weight model completes a full task** | **Not verified here** | Hugging Face, Ollama and ModelScope were unreachable, so Qwen could not be downloaded. Backend code is protocol-tested against a fake Ollama endpoint (`tests/test_llm_backend.py`). Run `scripts/run_open_weight_task.sh` to produce this evidence. |
-| One-command run from a clean clone | Verified with `--cli` | Fresh clone, Python 3.13, Node 22 |
+| **Open-weight model completes a full task** | **Verified** (laptop) | `open_weight_runs/20261008T115750Z_BEN-0421/`: `qwen2.5:7b-instruct` via Ollama 0.40.1 on CPU planned the investigation and wrote the advisory narrative for case BEN-0421. Both LLM calls succeeded (planning about 3 min, narrative about 4.5 min); the officer approved and the gate released to the sandbox outbox. Transcript, model digest and that run's logs are in the folder. |
+| One-command run from a clean clone | Verified with `--cli` | Fresh clone in the sandbox (Python 3.13, Node 22) and on the laptop (WSL Ubuntu 24.04, Python 3.12, Node 22): 44 tests passed and the demo produced the same recommendation hash on both machines |
 | Docker | **Not verified** | Docker Hub was unreachable, so the image could not be built. `Dockerfile` and `docker-compose.yml` are provided but untested. |
 
-The committed `logs/` and `EVALS.md` come from runs with the **offline stub**. They say so in every record.
+The committed `logs/` and `EVALS.md` come from runs with the **offline stub**, and say so in every record. The open-weight evidence is the separate `open_weight_runs/` folder. In that run Qwen's plan chose a different market look-back window, which moved the maize price anomaly (−3.1% → −0.2% vs median) and the PD (0.071 → 0.070); the recommendation (REDUCE_CREDIT_AMOUNT, about 155,000 FCFA) and every stress figure were unchanged.
 
 ## Dashboard
 
