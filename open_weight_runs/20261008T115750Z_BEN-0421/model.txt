@@ -1,0 +1,5 @@
+model: qwen2.5:7b-instruct
+ollama_version: ollama version is 0.40.1
+model_digest: 845dbda0ea48
+details: {"parent_model": "", "format": "gguf", "family": "qwen2", "families": ["qwen2"], "parameter_size": "7.6B", "quantization_level": "Q4_K_M"}
+host: Linux 5.10.16.3-microsoft-standard-WSL2 x86_64

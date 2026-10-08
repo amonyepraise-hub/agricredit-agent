@@ -1,0 +1,54 @@
+====================================================================================================
+Case BEN-0421  |  model backend: ollama:qwen2.5:7b-instruct  |  faults: none
+====================================================================================================
+2026-10-08 12:57:53,179 INFO agricredit audit run_started case=BEN-0421 {"model_version": "ollama:qwen2.5:7b-instruct", "open_weight_backend": true, "faults": null}
+2026-10-08 13:01:05,706 INFO httpx HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 200 OK"
+2026-10-08 13:05:42,783 INFO httpx HTTP Request: POST http://localhost:11434/api/chat "HTTP/1.1 200 OK"
+2026-10-08 13:05:42,867 INFO agricredit audit awaiting_officer_approval case=BEN-0421 {"recommendation": "REDUCE_CREDIT_AMOUNT", "recommendation_hash": "49ff8a9d1a6f017414f85a087a1f3870f20acfe7b4d010393c94114486272500", "evidence_items": 19, "narrative_author": "ollama:qwen2.5:7b-instr
+  [load_case] Loaded policy agricredit-policy-2026.10-v1 via filesystem MCP server  <filesystem.read_text_file>
+  [load_case] Case BEN-0421: Maize Input Package B, 185,000 FCFA over 6 months for household HH-00421  <agricredit.get_credit_case>
+  [validate_data] Case request is internally consistent
+  [plan_investigation] Investigation planned by ollama:qwen2.5:7b-instruct
+  [get_household_evidence] 2 plots, 6 yield records, 3 repayment records, 0 obligations  <agricredit.get_household_case>
+  [get_weather_evidence] Rainfall 755.8 mm, -11.1% vs baseline  <agricredit.get_weather_signal>
+  [get_market_evidence] maize 173.4 FCFA/kg at Glazoue-Market (-0.2% vs median)  <agricredit.get_market_signal>
+  [quantitative_assessment] PD 0.070 (score 86, LOW); capacity 1.35x base / 0.87x combined shock. Largest risk drivers: base_capacity +0.78, yield_ratio -0.63, log_amount +0.21  <agricredit.assess_serviceability>
+  [contradiction_check] No contradictions found
+  [evidence_sufficiency] Evidence SUFFICIENT; 1 warning(s)
+  [draft_advisory] Draft stored: REDUCE_CREDIT_AMOUNT (hash 49ff8a9d1a6f...), 19 cited evidence items. Waiting for a named officer.  <agricredit.draft_credit_advisory>
+----------------------------------------------------------------------------------------------------
+STATUS: AWAITING_APPROVAL
+RECOMMENDATION: REDUCE_CREDIT_AMOUNT  (suggested amount 155,000 FCFA)
+Risk score 86/100 | PD 0.070 | capacity 1.35x base, 0.87x combined shock
+   base_case       capacity   1.35x   revenue    341,549 FCFA
+   yield_shock     capacity   1.01x   revenue    273,239 FCFA
+   price_shock     capacity   1.18x   revenue    307,394 FCFA
+   combined_shock  capacity   0.87x   revenue    245,915 FCFA
+   ! Viable only under optimistic assumptions
+   WARNING: latest repayment record is 47 days old: verify current status
+Officer action: Discuss a reduced package of about 155,000 FCFA with the household before any approval. Before approval, also resolve: latest repayment record is 47 days old: verify current status.
+Narrative (ollama:qwen2.5:7b-instruct): Based on the evidence, the current loan request of 185,000 FCFA for Maize Input Package B is too large, as it reduces the household's repayment capacity under combined shocks to 0.87x, below the recommended threshold of 1.0x. A scaled package of about 155,000 FCFA, as suggested, keeps the combined-shock capacity at or above 1.0x, ensuring better financial sustainability. This recommendation is viable only under optimistic assumptions, and the officer is advised to discuss this reduced package with the household before any approval. Additionally, the latest repayment record is 47 days old, so t
+Evidence items cited: 19 | hash 49ff8a9d1a6f0174...
+====================================================================================================
+2026-10-08 13:05:43,753 INFO agricredit audit officer_approve case=BEN-0421 {"approval_id": "appr-b45c3e1f0ecc", "recommendation_hash": "49ff8a9d1a6f017414f85a087a1f3870f20acfe7b4d010393c94114486272500", "officer_name": "A. Houngbo (synthetic officer)", "reason": null, "recom
+Officer A. Houngbo (synthetic officer) recorded APPROVE (appr-b45c3e1f0ecc)
+2026-10-08 13:05:45,959 INFO agricredit audit advisory_released case=BEN-0421 {"release_id": "rel-f0767864e26d", "approval_id": "appr-b45c3e1f0ecc", "officer_id": "OFF-001", "recommendation": "REDUCE_CREDIT_AMOUNT", "recommendation_hash": "49ff8a9d1a6f017414f85a087a1f3870f20acf
+2026-10-08 13:05:46,010 INFO agricredit audit run_finished case=BEN-0421 {"status": "RELEASED", "recommendation": "REDUCE_CREDIT_AMOUNT", "model_version": "ollama:qwen2.5:7b-instruct", "llm_used": ["plan:ollama:qwen2.5:7b-instruct", "narrative:ollama:qwen2.5:7b-instruct"],
+  [human_approval] Officer input received: release
+  [release] Released to sandbox outbox  <agricredit.release_advisory_after_approval>
+  [finalize] Run finished: RELEASED; audit summary written via filesystem MCP (ok)  <filesystem.write_file>
+----------------------------------------------------------------------------------------------------
+STATUS: RELEASED
+RECOMMENDATION: REDUCE_CREDIT_AMOUNT  (suggested amount 155,000 FCFA)
+Risk score 86/100 | PD 0.070 | capacity 1.35x base, 0.87x combined shock
+   base_case       capacity   1.35x   revenue    341,549 FCFA
+   yield_shock     capacity   1.01x   revenue    273,239 FCFA
+   price_shock     capacity   1.18x   revenue    307,394 FCFA
+   combined_shock  capacity   0.87x   revenue    245,915 FCFA
+   ! Viable only under optimistic assumptions
+   WARNING: latest repayment record is 47 days old: verify current status
+Officer action: Discuss a reduced package of about 155,000 FCFA with the household before any approval. Before approval, also resolve: latest repayment record is 47 days old: verify current status.
+Narrative (ollama:qwen2.5:7b-instruct): Based on the evidence, the current loan request of 185,000 FCFA for Maize Input Package B is too large, as it reduces the household's repayment capacity under combined shocks to 0.87x, below the recommended threshold of 1.0x. A scaled package of about 155,000 FCFA, as suggested, keeps the combined-shock capacity at or above 1.0x, ensuring better financial sustainability. This recommendation is viable only under optimistic assumptions, and the officer is advised to discuss this reduced package with the household before any approval. Additionally, the latest repayment record is 47 days old, so t
+Evidence items cited: 19 | hash 49ff8a9d1a6f0174...
+RELEASE: {"released": true, "case_id": "BEN-0421", "reason": "all approval checks passed; written to sandbox outbox", "checks": {"approval_exists": true, "approval_matches_stored_record": true, "decision_is_approve": true, "case_matches": true, "named_officer_registered": true, "approval_not_expired": true, "approval_not_replayed": true, "hash_matches_approval": true, "advisory_exists": true, "recommendati
+====================================================================================================
