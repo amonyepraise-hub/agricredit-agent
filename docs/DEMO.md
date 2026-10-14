@@ -1,18 +1,28 @@
 # Three-minute demo script
 
-Record the real system running; no slides. Before recording, run `./run_demo.sh` once so setup and tests finish. For the open-weight requirement, have Ollama serving `qwen2.5:7b-instruct` so the sidebar shows **Model: ollama:qwen2.5:7b-instruct**. If it shows the offline stub, say so on camera: the stub is not a language model.
+The demo video is **one continuous, unedited recording** of the real system: no cuts, no speed-up, no slides. It uses one case, BEN-0421, with the rainfall-service outage switched on, so a single run shows planning, MCP tool calls, a tool failure and recovery, the risk model and stress tests, a refusal to recommend, officer approval, the gated release and the audit trail.
 
-| Time | Show | Required element |
+## Setup (not recorded)
+
+1. Window A: `ollama serve` (optionally `OLLAMA_KEEP_ALIVE=-1 ollama serve` so the model stays loaded).
+2. Window B: `cd ~/agricredit-agent && ./run_demo.sh`, then open `http://localhost:8501`.
+3. Set `OLLAMA_MODEL=qwen2.5:1.5b-instruct` in `.env`. On a CPU-only laptop a full run takes about 1 min 40 s with this model, which fits in three minutes. With `qwen2.5:7b-instruct` a run takes about 8 minutes, so it cannot be shown unedited in three minutes; the 7B run is recorded separately in `open_weight_runs/`.
+4. Rehearse once (this also loads the model into memory), press F5 to reset the page, then record within five minutes.
+
+## Script
+
+| Time (approx.) | Do | Say |
 |---|---|---|
-| 0:00–0:15 | Dashboard open. Say: "Evidence-first underwriting agent for an extension officer. All household data is synthetic." Point to the model badge in the sidebar. | — |
-| 0:15–0:25 | Sidebar: select **BEN-0421** (Maize Input Package B, 185,000 FCFA). Press **Run agent**. | 1. selecting a household |
-| 0:25–0:45 | Panel 2: the `plan_investigation` line and the expanded plan (written by Qwen), then each MCP tool name next to its step. | 2. agent planning · 3. MCP tool calls |
-| 0:45–1:00 | Panel 3: rainfall observation (−11% vs baseline), maize price at Glazoue, repayment records. Point out the **⚠ stale** marker on the 47-day-old repayment record. | 5. weather/market evidence |
-| 1:00–1:20 | Panel 4: risk score, PD, capacity 1.35x base / 0.87x combined. The contribution chart answers "why is the risk what it is". | 4. risk calculation |
-| 1:20–1:35 | The one-line verdict under the status bar summarises the result. Panel 5: capacity drops below the dashed 1.0x line under the combined shock. Panel 6: **REDUCE CREDIT AMOUNT → ~155,000 FCFA**, the "viable only under optimistic assumptions" warning, and the officer action naming the stale record. | 6. stress test · 7. recommendation |
-| 1:35–2:05 | Sidebar: select **BEN-0008**, tick **Simulate rainfall-service outage**, Run. Panel 2 shows two failed weather attempts, the cache fallback marked stale, and then **REQUEST MORE EVIDENCE**: the cached observation is 25 days old, over the 21-day policy limit. No credit recommendation is made. | 8. deliberate data problem · 9. recovery/refusal |
-| 2:05–2:35 | Back to **BEN-0421**, Run. Panel 7: choose **OFF-001**, APPROVE, Record decision. The release check table appears with every check passed, and the status becomes RELEASED (sandbox outbox, nothing sent). | 10. officer approval · 11. gated release |
-| 2:35–2:55 | Panel 8: tool-call table (node, server, tool, attempt, latency, cited sources), then audit events (`awaiting_officer_approval`, `officer_approve`, `advisory_released`). Optionally show `logs/tool_calls.jsonl` in a terminal. | 12. audit log |
-| 2:55–3:00 | "A draft never leaves without a named officer, and changing anything after approval voids it — see EVALS E11 and E12." | — |
+| 0:00–0:20 | Point at the model badge (green, `ollama:qwen2.5:1.5b-instruct`). Check **BEN-0421** is selected. Tick **Simulate rainfall-service outage**. Press **Run agent**. | "This is AgriCredit Agent, an evidence-first credit advisory agent for agricultural extension officers in Benin. All data is synthetic. It runs locally on this laptop's processor with the open-weight model Qwen 2.5. A household is asking for Maize Input Package B, 185,000 FCFA over six months. I'm switching on a deliberate data problem: the rainfall service for this household's zone is down." |
+| 0:20–2:00 | Wait while the agent runs. The screen barely changes. | "The agent reads the lending policy through the official MCP filesystem server, then Qwen plans the investigation. It calls our own MCP server for the household's plots, harvests and loan history, then the rainfall signal. That call fails, so it retries once; when it fails again, policy allows a cached reading, which it marks stale. Then it fetches maize prices. A calibrated statistical model, not the language model, calculates the probability of default, and four stress tests run. The agent checks whether the evidence is good enough; it will not invent a rainfall figure. Qwen writes the explanation and the agent stops. Only a named officer can release anything." |
+| ~2:00 | Verdict line under the status bar; panel 2 weather lines (two failed attempts, cached reading marked stale); panel 3 record IDs. | "The agent refuses to recommend credit and asks for more evidence. The rainfall tool failed twice, so it fell back to a cached reading, 25 days old, marked stale. Every piece of evidence has its record ID." |
+| ~2:15 | Panel 4 risk score; panel 5 red bar below the dashed 1.0 line. | "The risk score comes from a statistical model, not from the AI. Under the combined shock, repayment capacity drops below 1.0." |
+| ~2:25 | Panel 6: REQUEST MORE EVIDENCE, the red "Missing evidence" box, the yellow 47-day warning, officer action. | "Because the cached rainfall is older than the 21 days the policy allows, there is no credit recommendation. It also flags that the repayment record is 47 days old. Officer action: get the missing evidence and re-run." |
+| ~2:40 | Panel 7: keep **OFF-001** and **APPROVE**, press **Record decision**; the release checks appear. | "The officer approves this request for more evidence. The release gate checks every condition and releases only to a sandbox. Nothing is sent to anyone." |
+| ~2:50 | Panel 8: tool-call table with the two ❌ weather attempts. | "Every tool call is logged, including the two failed rainfall calls. The code, the evaluations and a full run with Qwen 7B are on GitHub." |
 
-Terminal alternative: `./run_demo.sh --cli` (or `make demo`) prints the same sequence, plus a blocked unauthorized release, in about 15 seconds with the stub. With Qwen on CPU it is slower; trim the recording accordingly.
+If the results appear before the waiting narration ends, stop and continue with the results. The total must stay under 3:00 without editing.
+
+## What the video does not show
+
+Approval invalidation after a change (EVALS E12), unauthorized release attempts (E11), the price-shock and drought cases, and the documented open failure (E04) are covered by the evaluation suite rather than the video. `./run_demo.sh --cli` prints a scripted terminal sequence that includes a blocked unauthorized release.

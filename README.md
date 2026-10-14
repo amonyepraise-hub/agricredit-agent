@@ -6,6 +6,8 @@ An evidence-first agricultural underwriting agent that helps extension officers 
 
 Built new for the Qhala Trust African Agentic AI Design Challenge (Agriculture & Food Security track). Benin-focused, amounts in FCFA. **All household, farm and repayment data is synthetic.**
 
+Challenge theme: **Input & credit risk**: matching a household's yield history and repayment record to an input package or credit offer it can actually service. Office and workflow: a local agricultural extension office or cooperative credit desk, during the pre-season input-credit review.
+
 ## What it does
 
 For a credit case (a household, an input package, loan terms), the agent:
@@ -85,6 +87,15 @@ Verified in two places: the build environment (a cloud sandbox without GPU, Dock
 
 The committed `logs/` and `EVALS.md` come from runs with the **offline stub**, and say so in every record. The open-weight evidence is the separate `open_weight_runs/` folder. In that run Qwen's plan chose a different market look-back window, which moved the maize price anomaly (−3.1% → −0.2% vs median) and the PD (0.071 → 0.070); the recommendation (REDUCE_CREDIT_AMOUNT, about 155,000 FCFA) and every stress figure were unchanged.
 
+## Cost and time per run
+
+- **Money:** no paid AI service, no API key and no per-run fee. The model, the MCP servers and the data all run on the officer's own machine, so household records never leave it.
+- **Time, measured on a CPU-only Windows laptop** (WSL 2, 7.7 GB RAM available to Linux, no GPU), one case end to end:
+  - `qwen2.5:7b-instruct`: about 7 min 50 s (planning 3 min 11 s, drafting 4 min 31 s), from the logs in `open_weight_runs/20261008T115750Z_BEN-0421/`.
+  - `qwen2.5:1.5b-instruct`: about 1 min 55 s, measured with `time` on the same laptop. The demo video uses this model so that one unedited run fits in three minutes.
+  - Everything except the two model calls (MCP tools, risk model, stress tests, checks, release gate) takes about 2 s.
+- The 1.5B model writes noticeably weaker explanations than 7B. Figures and the recommendation type do not depend on the model, so they are identical.
+
 ## Dashboard
 
 Eight panels, in reading order: case selection (sidebar, including a toggle that simulates a rainfall-service outage); **what the agent did** (each graph step and the MCP tool it called); **evidence retrieved** (kind, record ID, observation date, staleness); **risk assessment** (score, PD, capacity, and the features driving the risk); **stress test**; **draft advisory** (recommendation, rationale, warnings, missing evidence, officer action, LLM explanation, assumptions, hashes); **officer decision**; **audit trail**. The three-minute walkthrough is in [`docs/DEMO.md`](docs/DEMO.md).
@@ -95,6 +106,8 @@ Eight panels, in reading order: case selection (sidebar, including a toggle that
 |---|---|---|
 | `agricredit-mcp` (`python -m agricredit.mcp_server`) | this project | `get_credit_case`, `get_household_case`, `get_weather_signal`, `get_market_signal`, `assess_serviceability`, `draft_credit_advisory` (action), `release_advisory_after_approval` (action) |
 | `@modelcontextprotocol/server-filesystem` 2026.8.31 | Model Context Protocol project | `read_text_file` (policy, eval fixtures), `create_directory`, `write_file` (audit exports), restricted to `fs_mcp_root/` |
+
+Why borrow the filesystem server instead of writing one: safe path handling, symlink resolution and allow-listing are generic, security-sensitive and already maintained upstream (it refuses `/etc/passwd`, see E17); rewriting them inside a credit server would add attack surface and no agricultural value.
 
 Built on MCP Python SDK 2.3.0 (`MCPServer`, `Client`); the deprecated v1 `FastMCP` API is not used.
 
