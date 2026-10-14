@@ -10,7 +10,19 @@ Challenge theme: **Input & credit risk**: matching a household's yield history a
 
 **Demo video** (one continuous, unedited run, under 3 minutes): https://youtu.be/Xq7xbSzWFhI
 
-## What it does
+## Problem statement
+
+Before planting, extension offices and cooperative credit desks in Benin decide which smallholder households receive seed and fertiliser on credit. A desk of two or three staff may serve thousands of farmers, and the evidence is scattered: yields in field notebooks, repayment records in ledgers, rainfall from the weather service, prices from aggregation centres. Cross-checking it all for every household is slow, so decisions often rest on memory or rules of thumb.
+
+Getting it wrong hurts both ways. Lend too much and one dry spell or price drop pushes a family into debt. Lend too little and a household that could repay never gets the inputs that raise yields. Rain-fed farming, more frequent climate shocks, sensitive data that should stay in the country, and offices with ordinary laptops and unreliable internet make this harder in Africa.
+
+## Target users
+
+- **Extension officers and cooperative credit-desk staff** (primary users): they run the agent, review the draft and approve or reject it under their own officer ID.
+- **Cooperative credit committees**: they get a consistent, cited advisory for each household instead of an informal judgement.
+- **Smallholder farming households** (beneficiaries): they get credit sized to what they can repay; they never interact with the agent directly.
+
+## Solution overview: what it does
 
 For a credit case (a household, an input package, loan terms), the agent:
 
@@ -23,6 +35,41 @@ For a credit case (a household, an input package, loan terms), the agent:
 7. releases (to a sandbox outbox; nothing is ever sent) **only** if a registered officer approved that exact draft and nothing has changed since.
 
 Every MCP and LLM call is logged with inputs, outputs, latency and timestamps.
+
+## Architecture
+
+![AgriCredit Agent architecture](docs/architecture.png)
+
+### Agent architecture
+
+- **Agent and orchestration:** one orchestrating agent, built as a LangGraph state machine: `load_case → validate_data → plan_investigation → get_household_evidence → get_weather_evidence → get_market_evidence → quantitative_assessment → contradiction_check → evidence_sufficiency → draft_advisory → human_approval (interrupt) → release | terminate → finalize`.
+- **LLM:** Qwen2.5-Instruct (7B or 1.5B), open-weight, served locally by Ollama or any OpenAI-compatible server (`src/agricredit/agent/llm.py`). It is used in two steps only: planning (look-back windows, alternative market) and writing the narrative. A guard rejects any number in the narrative that is not in the evidence.
+- **Memory and state:** the LangGraph checkpointer holds the case state, so a run pauses at `human_approval` and resumes after the officer decides. Evidence items are versioned and HMAC-signed.
+- **Tools:** reached only through MCP (see "MCP servers" below). The MCP client (`src/agricredit/agent/toolbox.py`) opens two stdio connections, retries failed calls within the policy's bounds and logs every call.
+- **Risk and finance:** fixed formulas, not the LLM: repayment capacity in four scenarios (normal, −20% yield, −10% price, both) and a calibrated logistic-regression probability of default.
+- **Data:** SQLite (`data/agricredit.db`), the risk model (`data/risk_model.joblib`), the policy file and audit exports in `fs_mcp_root/`, and JSONL logs in `logs/`. No external API is called at run time.
+
+### Human-in-the-loop workflow
+
+1. The officer selects a case and runs the agent.
+2. The agent gathers evidence, scores risk, runs stress tests and drafts an advisory. It never sends anything itself.
+3. The run **pauses** at `human_approval`. The officer reads the draft, evidence and warnings, then records APPROVE or REJECT under a registered officer ID (a reason is required to reject).
+4. The approval gate re-checks the recommendation hash, evidence version, model version, expiry (72 hours by default) and that the approval has not been used before. Any change since approval voids it.
+5. Only then is the advisory released, to a sandbox outbox. A rejection ends the run. Every step is written to the audit log.
+
+### Technology stack
+
+| Layer | Technology |
+|---|---|
+| Language | Python 3.11+ (tested on 3.12 and 3.13); Node.js 20+ for the borrowed MCP server |
+| Agent orchestration | LangGraph 1.2.14 |
+| MCP | MCP Python SDK 2.3.0 (`MCPServer`, `Client`); `@modelcontextprotocol/server-filesystem` 2026.8.31 |
+| LLM | Qwen2.5-Instruct 7B / 1.5B via Ollama (OpenAI-compatible servers also supported) |
+| Risk model | scikit-learn 1.9.1 (calibrated logistic regression), NumPy, pandas |
+| Validation | Pydantic 2.13 |
+| Database | SQLite |
+| Interface | Streamlit 1.65 dashboard; command-line demo |
+| Testing | pytest (44 tests) and an 18-task eval suite |
 
 ## Run it (one command)
 
@@ -102,6 +149,16 @@ The committed `logs/` and `EVALS.md` come from runs with the **offline stub**, a
 
 Eight panels, in reading order: case selection (sidebar, including a toggle that simulates a rainfall-service outage); **what the agent did** (each graph step and the MCP tool it called); **evidence retrieved** (kind, record ID, observation date, staleness); **risk assessment** (score, PD, capacity, and the features driving the risk); **stress test**; **draft advisory** (recommendation, rationale, warnings, missing evidence, officer action, LLM explanation, assumptions, hashes); **officer decision**; **audit trail**. The three-minute walkthrough is in [`docs/DEMO.md`](docs/DEMO.md).
 
+## Usage
+
+1. Start the dashboard with `./run_demo.sh` and open http://localhost:8501.
+2. In the sidebar, choose a case under **1 · Select a case** (for example BEN-0421). Optionally tick **Simulate rainfall-service outage** to watch the agent recover from a failing tool.
+3. Click **▶ Run agent**. The panels fill in: what the agent did, the evidence, the risk assessment, the stress test and the draft advisory.
+4. In **Officer decision**, pick an officer, choose APPROVE or REJECT (a reason is required to reject) and click **Record decision**.
+5. The run resumes, the gate verifies the approval, and the result and audit trail appear at the bottom.
+
+From the terminal: `./run_demo.sh --cli` runs the scripted demo; `python -m agricredit.cli cases` lists the cases and `python -m agricredit.cli run BEN-0421 --approve OFF-001` runs one case and records an officer approval (use `--reject OFF-001` to reject).
+
 ## MCP servers
 
 | Server | Who maintains it | Tools used |
@@ -144,6 +201,27 @@ scripts/        run_open_weight_task.sh
 ## Security notes
 
 Household notes, market records and retrieved files are treated as untrusted data. Defences, with the eval that tests each: strict Pydantic validation with ID regexes (E17); injection screening and withholding notes from the model (E10); HMAC-signed evidence (E16); server-side policy re-check (E15); filesystem access only via the sandboxed official server (E17); no MCP tool can create an approval; approvals are single-use and bound to hash, evidence and model version (E11, E12).
+
+## Limitations
+
+- **Synthetic data only.** The households, repayments, weather and prices are generated, and the risk model is trained on them. It has not been validated on real repayment data.
+- **Not yet field-tested** with extension officers or cooperatives.
+- **Reduced offers are fractions of a package** rather than real catalogue packages (eval E04, the one open failure).
+- **No real messages are sent.** Release goes to a sandbox outbox; there is no SMS or USSD integration yet.
+- **No live data feeds.** Weather and market data come from the local database, not from a weather service or price feed.
+- **Speed on CPU.** Qwen 7B takes about 8 minutes per case on a CPU-only laptop; Qwen 1.5B takes about 2 minutes but writes weaker explanations.
+- **Single machine, no login.** Officers are picked from a list, without passwords. The checkpointer is in memory, so a paused case is lost if the app restarts.
+- **English only** in the dashboard and advisories.
+- **Docker files are untested** (see "Verification status").
+
+## Future improvements
+
+- Pilot with an extension office or cooperative in Benin, and recalibrate the risk model on real, anonymised repayment records.
+- Connect real rainfall and market-price feeds behind the existing `get_weather_signal` and `get_market_signal` tools, so the agent itself does not change.
+- Fix E04 by offering real catalogue packages when reducing the amount.
+- Deliver approved advice to farmers by SMS or USSD in French and local languages such as Fon.
+- Add officer login, a persistent checkpointer and multi-user support for a whole office.
+- Add fairness monitoring of recommendations across zones, crops and household types.
 
 ## License
 
