@@ -8,6 +8,8 @@ Built new for the Qhala Trust African Agentic AI Design Challenge (Agriculture &
 
 Challenge theme: **Input & credit risk**: matching a household's yield history and repayment record to an input package or credit offer it can actually service. Office and workflow: a local agricultural extension office or cooperative credit desk, during the pre-season input-credit review.
 
+**Demo video** (one continuous, unedited run, under 3 minutes): https://youtu.be/Xq7xbSzWFhI
+
 ## What it does
 
 For a credit case (a household, an input package, loan terms), the agent:
