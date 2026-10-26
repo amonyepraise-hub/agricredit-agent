@@ -82,9 +82,13 @@ def crosscheck_priority(communes: list[dict], primary: list[dict], markets: list
     return out[:limit]
 
 
-def fetch_all(refresh: bool = False, crosscheck_limit: int = 20, log: Callable[[str], None] = print) -> dict:
+def fetch_all(refresh: bool = False, crosscheck_limit: int = 0, log: Callable[[str], None] = print) -> dict:
     t0 = time.time()
     as_of = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None, minute=0, second=0, microsecond=0)
+    previous = PROCESSED / "snapshot.json"
+    if previous.exists() and not refresh:
+        # Re-running without --refresh keeps the previous data clock, so every earlier download is reused from the cache.
+        as_of = dt.datetime.fromisoformat(json.loads(previous.read_text())["as_of"])
     season = str(as_of.year)
     snap = {"as_of": as_of.isoformat(), "current_season": season, "sources": {}, "warnings": []}
 
@@ -115,63 +119,68 @@ def fetch_all(refresh: bool = False, crosscheck_limit: int = 20, log: Callable[[
         snap["warnings"].append(f"WFP prices not fetched: {e}")
         log(f"     WARNING: {e}")
 
-    log("4/5  NASA POWER daily rainfall for every commune (one request per POWER grid cell) ...")
-    start = dt.date(rainfall.BASELINE_YEARS[0], 1, 1)
-    end = as_of.date() - dt.timedelta(days=1)
+    log("4/5  ERA5 daily rainfall (Open-Meteo) for every commune: primary source, one request per season per grid cell ...")
+    last_day = as_of.date() - dt.timedelta(days=1)
     seasons = [str(y) for y in range(as_of.year - 3, as_of.year + 1)]
-    primary, cell_cache, fails = [], {}, 0
-    for i, c in enumerate(communes, start=1):
+    years = sorted(set(range(rainfall.PRIMARY_BASELINE_YEARS[0], rainfall.PRIMARY_BASELINE_YEARS[1] + 1)) | {int(x) for x in seasons})
+    primary, cells, fails = [], {}, 0
+    for c in communes:  # group communes into 0.5-degree cells so each cell is downloaded once
+        cells.setdefault((round(float(c["lat"]) / 0.5), round(float(c["lon"]) / 0.5)), []).append(c)
+    for i, members in enumerate(cells.values(), start=1):
         if fails >= 3 and not primary:
-            snap["warnings"].append("NASA POWER unreachable: stopped after 3 failed communes")
-            log("     NASA POWER looks unreachable; stopping this step (check the internet connection and re-run).")
+            snap["warnings"].append("Open-Meteo unreachable: stopped after 3 failed grid cells")
+            log("     Open-Meteo looks unreachable; stopping this step (check the internet connection and re-run).")
+            break
+        rep = members[0]
+        lat, lon = float(rep["lat"]), float(rep["lon"])
+        try:
+            daily = rainfall.fetch_openmeteo_seasons(lat, lon, rep["zone"], years, last_day, CACHE, refresh=refresh)
+        except FetchError as e:
+            fails += 1
+            snap["warnings"].append(f"Open-Meteo failed near {rep['name']}: {e}")
+            log(f"     WARNING near {rep['name']}: {e}")
+            continue
+        for c in members:
+            for s_ in seasons:
+                summ = rainfall.season_summary(daily, rep["zone"], int(s_), rainfall.PRIMARY_BASELINE_YEARS, min_years=8)
+                if summ and summ["season_complete"]:
+                    # only season windows are downloaded; a finished season's total is final as of this download
+                    summ["last_data_date"] = last_day.isoformat()
+                if summ:
+                    primary.append({"location_id": c["location_id"], "source": "primary", "source_dataset": rainfall.ERA5_SOURCE,
+                                    "source_url": rainfall.openmeteo_url(lat, lon, dt.date.fromisoformat(summ["window_start"]),
+                                                                         dt.date.fromisoformat(summ["window_end"]))} | summ)
+        if i % 5 == 0:
+            log(f"     {i}/{len(cells)} grid cells")
+    write_csv(PROCESSED / "rainfall_seasons.csv", primary)
+    snap["sources"]["era5_open_meteo"] = {"rows": len(primary), "grid_cells": len(cells),
+                                          "last_data_date": max((r["last_data_date"] for r in primary), default=None),
+                                          "retrieved_at": as_of.isoformat()}
+
+    log("5/5  NASA POWER daily rainfall for every commune: independent cross-check ...")
+    start = dt.date(rainfall.BASELINE_YEARS[0], 1, 1)
+    cross, cell_cache, fails = [], {}, 0
+    for c in communes:
+        if fails >= 3 and not cross:
+            snap["warnings"].append("NASA POWER unreachable: cross-check skipped")
+            log("     NASA POWER looks unreachable; the agent will run without the second rainfall source.")
             break
         lat, lon = float(c["lat"]), float(c["lon"])
         cell = (round(lat / 0.5), round(lon / 0.625))
         try:
             if cell not in cell_cache:
-                cell_cache[cell] = rainfall.fetch_power(lat, lon, start, end, CACHE, refresh=refresh)
-            daily = cell_cache[cell]
+                cell_cache[cell] = rainfall.fetch_power(lat, lon, start, last_day, CACHE, refresh=refresh)
         except FetchError as e:
             fails += 1
             snap["warnings"].append(f"NASA POWER failed for {c['name']}: {e}")
             log(f"     WARNING {c['name']}: {e}")
             continue
-        for s in seasons:
-            summ = rainfall.season_summary(daily, c["zone"], int(s))
-            if summ:
-                primary.append({"location_id": c["location_id"], "source": "primary", "source_dataset": rainfall.POWER_SOURCE,
-                                "source_url": rainfall.power_url(lat, lon, start, end)} | summ)
-        if i % 10 == 0:
-            log(f"     {i}/{len(communes)} communes")
-    write_csv(PROCESSED / "rainfall_seasons.csv", primary)
-    snap["sources"]["nasa_power"] = {"rows": len(primary), "grid_cells": len(cell_cache),
-                                     "last_data_date": max((r["last_data_date"] for r in primary), default=None),
-                                     "retrieved_at": as_of.isoformat()}
-
-    log(f"5/5  Open-Meteo ERA5 cross-check for up to {crosscheck_limit} communes ...")
-    cross = []
-    years = list(range(rainfall.CROSSCHECK_BASELINE_YEARS[0], rainfall.CROSSCHECK_BASELINE_YEARS[1] + 1)) + [as_of.year]
-    fails = 0
-    for c in crosscheck_priority(communes, primary, markets, season, crosscheck_limit):
-        if fails >= 3 and not cross:
-            snap["warnings"].append("Open-Meteo unreachable: cross-check skipped")
-            log("     Open-Meteo looks unreachable; the agent will run without the second rainfall source.")
-            break
-        lat, lon = float(c["lat"]), float(c["lon"])
-        try:
-            daily = rainfall.fetch_openmeteo_seasons(lat, lon, c["zone"], years, end, CACHE, refresh=refresh)
-        except FetchError as e:
-            fails += 1
-            snap["warnings"].append(f"Open-Meteo failed for {c['name']}: {e}")
-            log(f"     WARNING {c['name']}: {e}")
-            continue
-        summ = rainfall.season_summary(daily, c["zone"], as_of.year, rainfall.CROSSCHECK_BASELINE_YEARS)
+        summ = rainfall.season_summary(cell_cache[cell], c["zone"], as_of.year)
         if summ:
-            cross.append({"location_id": c["location_id"], "source": "crosscheck", "source_dataset": rainfall.ERA5_SOURCE,
-                          "source_url": rainfall.openmeteo_url(lat, lon, dt.date.fromisoformat(summ["window_start"]),
-                                                               dt.date.fromisoformat(summ["window_end"]))} | summ)
+            cross.append({"location_id": c["location_id"], "source": "crosscheck", "source_dataset": rainfall.POWER_SOURCE,
+                          "source_url": rainfall.power_url(lat, lon, start, last_day)} | summ)
     write_csv(PROCESSED / "rainfall_crosscheck.csv", cross)
-    snap["sources"]["open_meteo"] = {"rows": len(cross), "retrieved_at": as_of.isoformat()}
+    snap["sources"]["nasa_power"] = {"rows": len(cross), "grid_cells": len(cell_cache), "retrieved_at": as_of.isoformat()}
 
     snap["elapsed_s"] = round(time.time() - t0, 1)
     (PROCESSED / "snapshot.json").write_text(json.dumps(snap, indent=2))

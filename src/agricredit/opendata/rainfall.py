@@ -1,7 +1,12 @@
 """Daily rainfall from two independent open sources, summarised per commune and season.
 
-Primary:     NASA POWER daily point API, PRECTOTCORR (bias-corrected precipitation, mm/day).
-Cross-check: Open-Meteo historical API, ERA5 reanalysis, precipitation_sum (mm/day).
+Primary:     Open-Meteo historical API, ERA5 reanalysis, precipitation_sum (mm/day).
+Cross-check: NASA POWER daily point API, PRECTOTCORR (bias-corrected precipitation, mm/day).
+
+Why ERA5 is primary: the first real download (October 2026) showed NASA POWER's current-season rainfall
+56% above its own 1991-2020 average in the median commune (every commune positive), while ERA5 showed
+a near-normal season (-18% to +22%). The recent part of the POWER series is not consistent with its own
+history, so it is kept only as a visible cross-check.
 
 For each commune centroid the season window depends on the agro-climatic zone (approximate crop
 calendar). Season rainfall is compared with the average of the same calendar window over a baseline
@@ -22,7 +27,10 @@ SEASON_WINDOWS = {
     "north": ((5, 15), (10, 15)),  # single season of the north
 }
 BASELINE_YEARS = (1991, 2020)      # WMO standard normal period
-CROSSCHECK_BASELINE_YEARS = (2006, 2020)  # shorter, to stay inside Open-Meteo's free hourly allowance
+# ERA5 is the primary source: as a reanalysis it is produced by one fixed model for every year, so this season and
+# the baseline are comparable. A 10-year recent baseline keeps all 77 communes inside Open-Meteo's free allowance.
+PRIMARY_BASELINE_YEARS = (2016, 2025)
+CROSSCHECK_BASELINE_YEARS = PRIMARY_BASELINE_YEARS  # kept for backwards compatibility
 DROUGHT_ANOMALY_PCT = -20.0
 MIN_COMPLETENESS = 0.95
 
@@ -96,7 +104,7 @@ def _window_total(daily: dict[dt.date, float], start: dt.date, end: dt.date) -> 
 
 
 def season_summary(daily: dict[dt.date, float], zone: str, season_year: int,
-                   baseline_years: tuple[int, int] = BASELINE_YEARS) -> dict | None:
+                   baseline_years: tuple[int, int] = BASELINE_YEARS, min_years: int = 10) -> dict | None:
     """Season-to-date (or full-season) rainfall vs the same calendar window in the baseline years."""
     if not daily:
         return None
@@ -116,7 +124,7 @@ def season_summary(daily: dict[dt.date, float], zone: str, season_year: int,
         t, comp = _window_total(daily, b_start, b_end)
         if comp >= MIN_COMPLETENESS:
             base_totals.append(t)
-    if len(base_totals) < 10:
+    if len(base_totals) < min_years:
         return None
     baseline = sum(base_totals) / len(base_totals)
     anomaly = (total / baseline - 1) * 100 if baseline > 0 else 0.0

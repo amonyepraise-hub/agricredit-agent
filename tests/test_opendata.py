@@ -146,10 +146,10 @@ def real_store(tmp_path_factory):
     for i, c in enumerate(communes):
         cur = 5.0 * (0.7 + 0.1 * i)  # anomalies from -30% to +20%
         s = rainfall.season_summary(_daily(5.0, cur, 2026, last), c["zone"], 2026)
-        primary.append({"location_id": c["location_id"], "source": "primary", "source_dataset": rainfall.POWER_SOURCE,
-                        "source_url": rainfall.power_url(c["lat"], c["lon"], dt.date(1991, 1, 1), last)} | s)
-        cross.append({"location_id": c["location_id"], "source": "crosscheck", "source_dataset": rainfall.ERA5_SOURCE,
-                      "source_url": "https://archive-api.open-meteo.com/v1/archive"} | s)
+        primary.append({"location_id": c["location_id"], "source": "primary", "source_dataset": rainfall.ERA5_SOURCE,
+                        "source_url": rainfall.openmeteo_url(c["lat"], c["lon"], dt.date(2026, 3, 15), last)} | s)
+        cross.append({"location_id": c["location_id"], "source": "crosscheck", "source_dataset": rainfall.POWER_SOURCE,
+                      "source_url": rainfall.power_url(c["lat"], c["lon"], dt.date(1991, 1, 1), last)} | s)
     write_csv(proc / "rainfall_seasons.csv", primary)
     write_csv(proc / "rainfall_crosscheck.csv", cross)
     lines = WFP_CSV.splitlines()[:2]
@@ -199,6 +199,7 @@ def test_agent_runs_on_real_mode_store_with_cited_sources(real_store, monkeypatc
     assert st["status"] == "AWAITING_APPROVAL", st.get("refusal_reason")
     ev = st["advisory"]["evidence"]
     uris = " ".join(e["source_uri"] for e in ev)
-    assert "power.larc.nasa.gov" in uris and "data.humdata.org" in uris and "HarvestStat" in uris
+    assert "archive-api.open-meteo.com" in uris and "power.larc.nasa.gov" in uris
+    assert "data.humdata.org" in uris and "HarvestStat" in uris
     assert any(e["evidence_id"].startswith("weather_crosscheck:") for e in ev)
     assert any(e["evidence_id"].startswith("commune_yield:") for e in ev)

@@ -107,7 +107,7 @@ def build(seed: int = 42, households_per_commune: int = 5, db_path: Path = DB_PA
         areas[(y["fnid"], y["crop"])] = float(y["area_ha"])
 
     # ---- weather (primary rows for every crop; ERA5 cross-check rows)
-    weather = {}
+    weather, base_label = {}, "baseline"
     for r in ex["rainfall_seasons"]:
         obs = dt.datetime.fromisoformat(r["last_data_date"]) + dt.timedelta(hours=12)
         signal = (f"main-season window {r['window_start']}..{r['window_end']}"
@@ -121,6 +121,7 @@ def build(seed: int = 42, households_per_commune: int = 5, db_path: Path = DB_PA
                          snap["as_of"], r["source_dataset"], r["source_url"]))
         if r["season"] == season:
             weather[r["location_id"]] = float(r["rainfall_anomaly_pct"])
+            base_label = f"{r['baseline_years']} average"
     for r in ex["rainfall_crosscheck"]:
         obs = dt.datetime.fromisoformat(r["last_data_date"]) + dt.timedelta(hours=12)
         for crop in CROPS:
@@ -236,7 +237,7 @@ def build(seed: int = 42, households_per_commune: int = 5, db_path: Path = DB_PA
     if maize_communes:
         driest = sorted(maize_communes, key=lambda k: weather[k])
         low = "driest commune" if weather[driest[0]] < 0 else "lowest rainfall relative to normal"
-        add_case(driest[0], "maize", f"REAL rainfall: {low} this season ({weather[driest[0]]:+.1f}% vs 1991-2020, NASA POWER)")
+        add_case(driest[0], "maize", f"REAL rainfall: {low} this season ({weather[driest[0]]:+.1f}% vs {base_label}, ERA5)")
         add_case(driest[-1], "maize", f"REAL rainfall: wettest commune this season ({weather[driest[-1]]:+.1f}%)")
         taken = {driest[0], driest[-1]}
         normal = min((k for k in maize_communes if k not in taken), key=lambda k: abs(weather[k]), default=None)

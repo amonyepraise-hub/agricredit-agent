@@ -31,12 +31,18 @@ def get_bytes(url: str, cache_dir: Path, params: dict | None = None, suffix: str
     if path.exists() and not refresh:
         return path.read_bytes()
     last = None
-    for attempt in range(1, retries + 1):
+    attempt = rate_limited = 0
+    while attempt < retries:
         try:
             r = httpx.get(url, params=params, headers={"User-Agent": USER_AGENT}, timeout=timeout, follow_redirects=True)
-            if r.status_code == 429:  # rate limited: wait out the per-minute window, then retry
+            if r.status_code == 429 and rate_limited < 60:
+                # Rate limited (free tiers count per minute and per hour): wait and try again without
+                # using up an ordinary retry. Up to 60 waits of 65 s, enough to outlast an hourly limit.
+                rate_limited += 1
+                print(f"     rate limited by {httpx.URL(url).host}; waiting 65 s ({rate_limited}/60)", flush=True)
                 time.sleep(65)
-                raise FetchError(f"HTTP 429 (rate limited) from {url}")
+                continue
+            attempt += 1
             if r.status_code >= 500:
                 raise FetchError(f"HTTP {r.status_code} from {url}")
             r.raise_for_status()
@@ -44,6 +50,8 @@ def get_bytes(url: str, cache_dir: Path, params: dict | None = None, suffix: str
             time.sleep(pause_s)  # be polite to free public services
             return r.content
         except (httpx.HTTPError, FetchError) as e:
+            if isinstance(e, httpx.TransportError):
+                attempt += 1  # network errors count as an attempt too
             last = e
             time.sleep(min(30, 3 * attempt))
     raise FetchError(f"could not download {url} after {retries} attempts: {last}")
