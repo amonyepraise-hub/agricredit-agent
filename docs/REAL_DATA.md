@@ -22,8 +22,8 @@ Or step by step:
 |---|---|---|---|
 | Commune list, centroids | HarvestStat Africa v1.2 boundaries (FEWS NET units) | GeoPackage read with Python's `sqlite3`; centroid computed from the polygon | 77 communes |
 | Official yields | HarvestStat Africa v1.2, from Benin's Direction de la Statistique Agricole | CSV filtered to Benin; values flagged as outliers by HarvestStat are dropped | Commune, crop, year (1995 to 2023) |
-| Season rainfall and anomaly | NASA POWER daily point API, `PRECTOTCORR` | One request per POWER grid cell, 1991 to yesterday; season total vs the 1991-2020 mean of the same calendar window | Commune centroid, daily |
-| Rainfall cross-check | ERA5 via Open-Meteo historical API | Season windows only (2006-2020 baseline + this year), for up to 20 communes, spaced out to stay within the free allowance | Commune centroid, daily |
+| Season rainfall and anomaly (primary) | ERA5 reanalysis via the Open-Meteo historical API | Season windows only, 2016-2025 baseline + recent seasons, one request per year per 0.5° cell, spaced out to stay within the free allowance; season total vs the mean of the same calendar window | 0.5° cell, daily |
+| Rainfall cross-check | NASA POWER daily point API, `PRECTOTCORR` | One request per POWER grid cell, 1991 to yesterday; compared with its own 1991-2020 mean | Commune centroid, daily |
 | Market prices | WFP VAM "Benin - Food Prices" on HDX | Resource found through the HDX CKAN API; retail prices per kg; one variety per crop and market | Market, monthly |
 | Input package cost | Subsidised fertiliser prices for 2025/26 (NPK 17,000 and urea 15,000 FCFA per 50 kg bag) × the 200 kg NPK + 100 kg urea per hectare maize dose | Transcribed and cited in `src/agricredit/opendata/sources.py` | Per package |
 | Default-rate calibration | BCEAO, "Principaux indicateurs des SFD au 31 décembre 2024": Benin portfolio degradation rate 9.4% | Transcribed; the simulated loan outcomes are calibrated to this mean | National |
@@ -42,7 +42,9 @@ Nothing in the agent graph changed. The builder writes the same tables the MCP t
 
 - cite the real source URL in every weather and price evidence item;
 - add the commune's official yield as an extra evidence item for each crop the household grows;
-- add the ERA5 cross-check next to the NASA POWER rainfall, with the gap between them.
+- add the NASA POWER cross-check next to the ERA5 rainfall, with the gap between them.
+
+**Why ERA5 is primary.** The first real download (October 2026) showed NASA POWER's 2026 season 56% wetter than its own 1991-2020 average in the median commune, with every one of the 77 communes above average, while ERA5 showed a near-normal season (−18% to +22%). A reanalysis like ERA5 is produced by one fixed model for every year, so this season and its baseline are comparable. POWER is kept, visibly, as the cross-check.
 
 Real mode also uses its own policy file (`fs_mcp_root/policy/agent_policy_real.json`), read through the official MCP filesystem server as before. It maps each WFP market to its nearest neighbour for the stale-price fallback and looks back 52 weeks, because prices are monthly.
 
@@ -59,5 +61,6 @@ The agent's clock (`AGRICREDIT_AS_OF`) is the moment of the download, so a run m
 ## Troubleshooting
 
 - **"open data download did not finish"**: check the internet connection and run `./run_demo.sh --real` again. Finished downloads are cached in `data/real/cache/` and are not repeated.
-- **NASA POWER or Open-Meteo stops responding**: the fetcher gives up after three failed communes and says so. Without the cross-check the agent still runs; without the primary rainfall the build stops with a message.
+- **Open-Meteo says "rate limited"**: the fetcher waits 65 s and tries again, for up to about an hour; leave it running. Running `python -m agricredit.opendata fetch` again later reuses everything already downloaded.
+- **NASA POWER or Open-Meteo stops responding**: the fetcher gives up after three failures and says so. Without the cross-check the agent still runs; without the primary rainfall the build stops with a message.
 - **WFP prices missing**: HDX may be down for maintenance. Try again later; the build will not start without prices.

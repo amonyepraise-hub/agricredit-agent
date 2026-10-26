@@ -36,12 +36,12 @@ SOURCES: list[Source] = [
            "commune boundaries and centroids", "Open download, no account"),
     Source("nasa_power", "NASA POWER daily point API (PRECTOTCORR, bias-corrected precipitation)",
            "NASA Langley Research Center", "Public domain (U.S. Government work); cite NASA POWER",
-           "https://power.larc.nasa.gov/", "Daily rainfall 1991-today at each commune centroid -> season-to-date "
-           "rainfall, 1991-2020 baseline, anomaly and drought flag (primary rainfall source)", "Open API, no key"),
+           "https://power.larc.nasa.gov/", "Daily rainfall 1991-today at each commune centroid -> independent "
+           "cross-check shown beside the primary rainfall (its current season disagreed with its own history, so it is not primary)", "Open API, no key"),
     Source("open_meteo", "Open-Meteo Historical Weather API (ERA5 reanalysis)",
            "Open-Meteo / Copernicus Climate Change Service (ECMWF)", "CC BY 4.0 (non-commercial free tier)",
            "https://open-meteo.com/en/docs/historical-weather-api",
-           "Independent daily rainfall series -> cross-check of the primary rainfall anomaly", "Open API, no key"),
+           "Primary daily rainfall per commune -> season rainfall, 2016-2025 baseline, anomaly and drought flag", "Open API, no key"),
     Source("wfp_hdx", "Benin - Food Prices (WFP VAM) on the Humanitarian Data Exchange",
            "World Food Programme", "CC BY-IGO", "https://data.humdata.org/dataset/" + HDX_WFP_BENIN,
            "Monthly retail market prices (FCFA/kg) for maize, rice and other staples by market -> latest price, "

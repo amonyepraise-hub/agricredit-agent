@@ -78,8 +78,8 @@ Every MCP and LLM call is logged with inputs, outputs, latency and timestamps.
 | What the agent reads | Real source | How it is extracted |
 |---|---|---|
 | Commune boundaries and official crop yields (maize, rice, soybean, cotton, cashew; 77 communes, 1995 to 2023) | DSA Benin, harmonised by [HarvestStat Africa](https://github.com/HarvestStat/HarvestStat-Africa) (MIT) | CSV and GeoPackage download; centroids computed in pure Python |
-| Season rainfall, 1991-2020 baseline, anomaly, drought flag | [NASA POWER](https://power.larc.nasa.gov/) daily API (public domain) | One request per grid cell, 1991 to yesterday |
-| Independent rainfall cross-check | ERA5 via [Open-Meteo](https://open-meteo.com/) (CC BY 4.0) | Season windows only, to stay within the free allowance |
+| Season rainfall, anomaly, drought flag | ERA5 reanalysis via [Open-Meteo](https://open-meteo.com/) (CC BY 4.0) | Season windows, 2016-2025 baseline, one request per year per 0.5° cell |
+| Independent rainfall cross-check | [NASA POWER](https://power.larc.nasa.gov/) daily API (public domain) | One request per grid cell, 1991 to yesterday. Its 2026 season disagreed with its own history, so it is shown beside ERA5 rather than used ([why](docs/REAL_DATA.md)) |
 | Market prices (FCFA/kg) | [WFP, Benin - Food Prices on HDX](https://data.humdata.org/dataset/wfp-food-prices-for-benin) (CC BY-IGO) | Found through the HDX CKAN API, so new uploads are picked up |
 | Input package costs | Subsidised 2025/26 fertiliser prices ([gouv.bj](https://www.gouv.bj/article/3046/production-agricole-campagne-agricole-2025-2026-lancee-dassa-zoume/)) and the 200 kg NPK + 100 kg urea per hectare maize dose | Transcribed, cited in `src/agricredit/opendata/sources.py` |
 | Default-rate calibration | [BCEAO](https://bceao.int/), Benin microfinance portfolio degradation rate 9.4% (Dec 2024) | Transcribed, used to calibrate the simulated loan outcomes |
