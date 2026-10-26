@@ -22,7 +22,7 @@ SEASON_WINDOWS = {
     "north": ((5, 15), (10, 15)),  # single season of the north
 }
 BASELINE_YEARS = (1991, 2020)      # WMO standard normal period
-CROSSCHECK_BASELINE_YEARS = (2001, 2020)  # shorter, to stay inside Open-Meteo's free daily allowance
+CROSSCHECK_BASELINE_YEARS = (2006, 2020)  # shorter, to stay inside Open-Meteo's free hourly allowance
 DROUGHT_ANOMALY_PCT = -20.0
 MIN_COMPLETENESS = 0.95
 
@@ -71,7 +71,9 @@ def parse_openmeteo(payload: dict) -> dict[dt.date, float]:
 def fetch_openmeteo(lat: float, lon: float, start: dt.date, end: dt.date, cache: Path, refresh: bool = False) -> dict[dt.date, float]:
     params = {"latitude": f"{lat:.4f}", "longitude": f"{lon:.4f}", "start_date": start.isoformat(),
               "end_date": end.isoformat(), "daily": "precipitation_sum", "timezone": "GMT"}
-    return parse_openmeteo(get_json(OPEN_METEO_ARCHIVE, cache, params, refresh=refresh))
+    # Open-Meteo counts every two weeks of data as one call (600 per minute, 5,000 per hour on the free tier),
+    # so requests are spaced out.
+    return parse_openmeteo(get_json(OPEN_METEO_ARCHIVE, cache, params, refresh=refresh, pause_s=1.6))
 
 
 def fetch_openmeteo_seasons(lat: float, lon: float, zone: str, years: list[int], last_day: dt.date, cache: Path,

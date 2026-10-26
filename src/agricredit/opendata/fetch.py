@@ -82,7 +82,7 @@ def crosscheck_priority(communes: list[dict], primary: list[dict], markets: list
     return out[:limit]
 
 
-def fetch_all(refresh: bool = False, crosscheck_limit: int = 30, log: Callable[[str], None] = print) -> dict:
+def fetch_all(refresh: bool = False, crosscheck_limit: int = 20, log: Callable[[str], None] = print) -> dict:
     t0 = time.time()
     as_of = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None, minute=0, second=0, microsecond=0)
     season = str(as_of.year)
@@ -175,7 +175,7 @@ def fetch_all(refresh: bool = False, crosscheck_limit: int = 30, log: Callable[[
 
     snap["elapsed_s"] = round(time.time() - t0, 1)
     (PROCESSED / "snapshot.json").write_text(json.dumps(snap, indent=2))
-    log(f"Done in {snap['elapsed_s']:.0f} s. Extracts written to {PROCESSED.relative_to(REPO_ROOT)}/")
+    log(f"Done in {snap['elapsed_s']:.0f} s. Extracts written to {PROCESSED}/")
     for w in snap["warnings"]:
         log("  warning: " + w)
     return snap

@@ -34,7 +34,10 @@ def get_bytes(url: str, cache_dir: Path, params: dict | None = None, suffix: str
     for attempt in range(1, retries + 1):
         try:
             r = httpx.get(url, params=params, headers={"User-Agent": USER_AGENT}, timeout=timeout, follow_redirects=True)
-            if r.status_code == 429 or r.status_code >= 500:
+            if r.status_code == 429:  # rate limited: wait out the per-minute window, then retry
+                time.sleep(65)
+                raise FetchError(f"HTTP 429 (rate limited) from {url}")
+            if r.status_code >= 500:
                 raise FetchError(f"HTTP {r.status_code} from {url}")
             r.raise_for_status()
             path.write_bytes(r.content)

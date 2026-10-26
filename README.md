@@ -84,7 +84,7 @@ Every MCP and LLM call is logged with inputs, outputs, latency and timestamps.
 | Input package costs | Subsidised 2025/26 fertiliser prices ([gouv.bj](https://www.gouv.bj/article/3046/production-agricole-campagne-agricole-2025-2026-lancee-dassa-zoume/)) and the 200 kg NPK + 100 kg urea per hectare maize dose | Transcribed, cited in `src/agricredit/opendata/sources.py` |
 | Default-rate calibration | [BCEAO](https://bceao.int/), Benin microfinance portfolio degradation rate 9.4% (Dec 2024) | Transcribed, used to calibrate the simulated loan outcomes |
 
-Every evidence item links to its source URL, and rainfall shows both sources side by side. **Households and their repayment records are still simulated**, inside real communes and around each commune's official yields, because no open dataset publishes smallholders' loan repayments. The first run downloads the data (internet, about 15 minutes); later runs are offline. Step-by-step guide: [`docs/REAL_DATA.md`](docs/REAL_DATA.md).
+Every evidence item links to its source URL, and rainfall shows both sources side by side. **Households and their repayment records are still simulated**, inside real communes and around each commune's official yields, because no open dataset publishes smallholders' loan repayments. The first run downloads the data (internet, about 20 to 30 minutes); later runs are offline. Step-by-step guide: [`docs/REAL_DATA.md`](docs/REAL_DATA.md).
 
 ## Run it (one command)
 

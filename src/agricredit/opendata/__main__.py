@@ -20,7 +20,7 @@ def main() -> None:
     for name in ("fetch", "all"):
         f = sub.add_parser(name)
         f.add_argument("--refresh", action="store_true", help="ignore the download cache")
-        f.add_argument("--crosscheck-limit", type=int, default=30, help="communes that get the ERA5 cross-check")
+        f.add_argument("--crosscheck-limit", type=int, default=20, help="communes that get the ERA5 cross-check")
     b = sub.add_parser("build")
     b.add_argument("--households-per-commune", type=int, default=5)
     a = ap.parse_args()

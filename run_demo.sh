@@ -4,7 +4,7 @@
 #   ./run_demo.sh            set up (if needed), run tests, open the officer dashboard on http://localhost:8501
 #   ./run_demo.sh --cli      set up (if needed), run the scripted terminal demo instead of the dashboard
 #   ./run_demo.sh --real     same, but on REAL open data (NASA POWER, ERA5, WFP, HarvestStat/DSA). The first run
-#                            downloads the data (needs internet, about 15 minutes); later runs work offline.
+#                            downloads the data (needs internet, about 20 to 30 minutes); later runs work offline.
 #   ./run_demo.sh --real --refresh-data   download the open data again
 #
 # Needs: Python >= 3.11 and Node.js >= 20 (for the official MCP filesystem server). Nothing else.

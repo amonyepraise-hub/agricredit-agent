@@ -3,7 +3,7 @@
 The same agent, the same MCP tools and the same approval gate, reading public data for Benin instead of the synthetic store.
 
 ```bash
-./run_demo.sh --real          # first run downloads the data (internet, about 15 minutes), then opens the dashboard
+./run_demo.sh --real          # first run downloads the data (internet, about 20 to 30 minutes), then opens the dashboard
 ./run_demo.sh --real --cli    # same, then runs the first real case in the terminal
 ./run_demo.sh --real --refresh-data   # download everything again (new month of prices, new rainfall)
 ```
@@ -23,7 +23,7 @@ Or step by step:
 | Commune list, centroids | HarvestStat Africa v1.2 boundaries (FEWS NET units) | GeoPackage read with Python's `sqlite3`; centroid computed from the polygon | 77 communes |
 | Official yields | HarvestStat Africa v1.2, from Benin's Direction de la Statistique Agricole | CSV filtered to Benin; values flagged as outliers by HarvestStat are dropped | Commune, crop, year (1995 to 2023) |
 | Season rainfall and anomaly | NASA POWER daily point API, `PRECTOTCORR` | One request per POWER grid cell, 1991 to yesterday; season total vs the 1991-2020 mean of the same calendar window | Commune centroid, daily |
-| Rainfall cross-check | ERA5 via Open-Meteo historical API | Season windows only (2001-2020 baseline + this year), for up to 30 communes, to stay within the free allowance | Commune centroid, daily |
+| Rainfall cross-check | ERA5 via Open-Meteo historical API | Season windows only (2006-2020 baseline + this year), for up to 20 communes, spaced out to stay within the free allowance | Commune centroid, daily |
 | Market prices | WFP VAM "Benin - Food Prices" on HDX | Resource found through the HDX CKAN API; retail prices per kg; one variety per crop and market | Market, monthly |
 | Input package cost | Subsidised fertiliser prices for 2025/26 (NPK 17,000 and urea 15,000 FCFA per 50 kg bag) × the 200 kg NPK + 100 kg urea per hectare maize dose | Transcribed and cited in `src/agricredit/opendata/sources.py` | Per package |
 | Default-rate calibration | BCEAO, "Principaux indicateurs des SFD au 31 décembre 2024": Benin portfolio degradation rate 9.4% | Transcribed; the simulated loan outcomes are calibrated to this mean | National |
