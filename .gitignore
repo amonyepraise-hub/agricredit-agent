@@ -12,3 +12,8 @@ evals/.work/
 fs_mcp_root/audit_exports/*.json
 !fs_mcp_root/audit_exports/.gitkeep
 *.egg-info/
+
+# real-open-data mode: raw downloads and generated store/model (rebuild with ./run_demo.sh --real)
+data/real/cache/
+data/agricredit_real.db
+data/risk_model_real.joblib

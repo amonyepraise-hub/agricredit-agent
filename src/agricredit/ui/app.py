@@ -21,7 +21,7 @@ from agricredit.agent.runner import AgentRunner  # noqa: E402
 from agricredit.approval import gate  # noqa: E402
 from agricredit.audit.logger import read_jsonl  # noqa: E402
 from agricredit.config import AS_OF, get_settings  # noqa: E402
-from agricredit.db import list_cases, list_officers  # noqa: E402
+from agricredit.db import data_sources, list_cases, list_officers  # noqa: E402
 from agricredit.models.schemas import ApprovalDecision  # noqa: E402
 
 st.set_page_config(page_title="AgriCredit Agent", page_icon="🌾", layout="wide")
@@ -61,7 +61,17 @@ runner = get_runner()
 # ---------------------------------------------------------------- 1. case selection (sidebar)
 with st.sidebar:
     st.markdown("## 🌾 AgriCredit Agent")
-    st.caption("Evidence-first input-credit advisory for extension officers. **All household data is synthetic.**")
+    real_sources = data_sources()
+    if real_sources:
+        st.caption("Evidence-first input-credit advisory for extension officers.")
+        st.success("**Real open data mode.** Rainfall (NASA POWER, ERA5), market prices (WFP), official commune "
+                   "yields (DSA via HarvestStat) and fertiliser prices are real. Households and their loans are "
+                   "simulated inside real communes.")
+        with st.expander("Data sources and licences"):
+            for src in real_sources:
+                st.markdown(f"- [{src['name']}]({src['url']}): {src['publisher']} · {src['licence']}")
+    else:
+        st.caption("Evidence-first input-credit advisory for extension officers. **All household data is synthetic.**")
     if s.is_open_weight_backend:
         st.success(f"Model: {s.model_version}")
     else:

@@ -22,7 +22,8 @@ PERMISSIVENESS = {
 
 def load_policy_file() -> dict:
     """Server-side read of the same policy file the agent reads via the filesystem MCP server."""
-    return json.loads((Path(get_settings().fs_mcp_root) / "policy" / "agent_policy.json").read_text())
+    s = get_settings()
+    return json.loads((Path(s.fs_mcp_root) / "policy" / s.policy_file).read_text())
 
 
 def decide(assessment: dict | None, blocking_gaps: list[str], warnings: list[str], requested_amount: float,

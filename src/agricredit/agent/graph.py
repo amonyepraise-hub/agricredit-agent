@@ -25,6 +25,13 @@ from .toolbox import CURRENT
 MARKET_CENTRES = ["Bohicon-Market", "Parakou-Market", "Glazoue-Market", "Dassa-Market", "Malanville-Market"]
 
 
+def market_centres(policy: dict) -> list[str]:
+    """Known market centres = every centre named in the policy's alternate-centre map (synthetic or real mode)."""
+    alts = policy.get("market", {}).get("alternate_centres", {})
+    known = set(alts) | set(alts.values())
+    return MARKET_CENTRES if not known or known == set(MARKET_CENTRES) else sorted(known)
+
+
 class AgentState(TypedDict, total=False):
     run_id: str
     case_id: str
@@ -93,7 +100,7 @@ async def validate_data(state: AgentState) -> dict:
         problems.append(f"package crop {c['package']['crop']} differs from case crop {c['crop']}")
     if c["requested_amount_fcfa"] <= 0 or c["tenor_months"] <= 0:
         problems.append("non-positive amount or tenor")
-    if c["market_centre"] not in MARKET_CENTRES:
+    if c["market_centre"] not in market_centres(state["policy"]):
         problems.append(f"unknown market centre {c['market_centre']}")
     if problems:
         return {"status": "REFUSED", "refusal_reason": "Case request is invalid: " + "; ".join(problems),
@@ -122,7 +129,7 @@ async def plan_investigation(state: AgentState) -> dict:
         f"CASE: {json.dumps({k: c[k] for k in ['case_id', 'crop', 'season', 'market_centre', 'requested_amount_fcfa', 'tenor_months']})}\n"
         f"PACKAGE: {c['package']['name']} costing {c['package']['cost_fcfa']:,.0f} FCFA; LOAN: {c['loan_product']['name']}\n"
         f"AVAILABLE MCP TOOLS:\n- " + "\n- ".join(tools) + "\n\n"
-        f"Allowed alternate market centres: {MARKET_CENTRES}.\n"
+        f"Allowed alternate market centres: {market_centres(p)}.\n"
         'Return JSON only: {"investigation_focus": [3-6 short strings], "weather_lookback_days": int 30-180, '
         '"market_lookback_weeks": int 8-52, "alternate_market_centre": one allowed centre different from the case centre, '
         '"risks_to_check": [2-6 short strings]}'
@@ -136,7 +143,7 @@ async def plan_investigation(state: AgentState) -> dict:
             "investigation_focus": [str(x)[:120] for x in plan.get("investigation_focus", [])][:6] or default["investigation_focus"],
             "weather_lookback_days": min(180, max(30, int(plan.get("weather_lookback_days", default["weather_lookback_days"])))),
             "market_lookback_weeks": min(52, max(8, int(plan.get("market_lookback_weeks", default["market_lookback_weeks"])))),
-            "alternate_market_centre": plan.get("alternate_market_centre") if plan.get("alternate_market_centre") in MARKET_CENTRES
+            "alternate_market_centre": plan.get("alternate_market_centre") if plan.get("alternate_market_centre") in market_centres(p)
             and plan.get("alternate_market_centre") != c["market_centre"] else default["alternate_market_centre"],
             "risks_to_check": [str(x)[:120] for x in plan.get("risks_to_check", [])][:6] or default["risks_to_check"],
         }

@@ -71,6 +71,21 @@ Every MCP and LLM call is logged with inputs, outputs, latency and timestamps.
 | Interface | Streamlit 1.65 dashboard; command-line demo |
 | Testing | pytest (44 tests) and an 18-task eval suite |
 
+## Real open data mode
+
+`./run_demo.sh --real` runs the same agent, unchanged, on public data for Benin instead of the synthetic store:
+
+| What the agent reads | Real source | How it is extracted |
+|---|---|---|
+| Commune boundaries and official crop yields (maize, rice, soybean, cotton, cashew; 77 communes, 1995 to 2023) | DSA Benin, harmonised by [HarvestStat Africa](https://github.com/HarvestStat/HarvestStat-Africa) (MIT) | CSV and GeoPackage download; centroids computed in pure Python |
+| Season rainfall, 1991-2020 baseline, anomaly, drought flag | [NASA POWER](https://power.larc.nasa.gov/) daily API (public domain) | One request per grid cell, 1991 to yesterday |
+| Independent rainfall cross-check | ERA5 via [Open-Meteo](https://open-meteo.com/) (CC BY 4.0) | Season windows only, to stay within the free allowance |
+| Market prices (FCFA/kg) | [WFP, Benin - Food Prices on HDX](https://data.humdata.org/dataset/wfp-food-prices-for-benin) (CC BY-IGO) | Found through the HDX CKAN API, so new uploads are picked up |
+| Input package costs | Subsidised 2025/26 fertiliser prices ([gouv.bj](https://www.gouv.bj/article/3046/production-agricole-campagne-agricole-2025-2026-lancee-dassa-zoume/)) and the 200 kg NPK + 100 kg urea per hectare maize dose | Transcribed, cited in `src/agricredit/opendata/sources.py` |
+| Default-rate calibration | [BCEAO](https://bceao.int/), Benin microfinance portfolio degradation rate 9.4% (Dec 2024) | Transcribed, used to calibrate the simulated loan outcomes |
+
+Every evidence item links to its source URL, and rainfall shows both sources side by side. **Households and their repayment records are still simulated**, inside real communes and around each commune's official yields, because no open dataset publishes smallholders' loan repayments. The first run downloads the data (internet, about 15 minutes); later runs are offline. Step-by-step guide: [`docs/REAL_DATA.md`](docs/REAL_DATA.md).
+
 ## Run it (one command)
 
 Requirements: Python ≥ 3.11, Node.js ≥ 20, and git. Linux or macOS. On Windows, use WSL (see below).
@@ -204,11 +219,11 @@ Household notes, market records and retrieved files are treated as untrusted dat
 
 ## Limitations
 
-- **Synthetic data only.** The households, repayments, weather and prices are generated, and the risk model is trained on them. It has not been validated on real repayment data.
+- **Households and repayments are simulated.** In the default mode everything is synthetic. In real open data mode, rainfall, prices, commune yields and input costs are real, but households and their loans are simulated inside real communes, so the risk model has still not been validated on real repayment data.
 - **Not yet field-tested** with extension officers or cooperatives.
 - **Reduced offers are fractions of a package** rather than real catalogue packages (eval E04, the one open failure).
 - **No real messages are sent.** Release goes to a sandbox outbox; there is no SMS or USSD integration yet.
-- **No live data feeds.** Weather and market data come from the local database, not from a weather service or price feed.
+- **Snapshots, not live feeds.** Real open data is downloaded into a dated snapshot, not queried live at each run. WFP prices are monthly and arrive one to two months late, and the latest official commune yields are for 2023.
 - **Speed on CPU.** Qwen 7B takes about 8 minutes per case on a CPU-only laptop; Qwen 1.5B takes about 2 minutes but writes weaker explanations.
 - **Single machine, no login.** Officers are picked from a list, without passwords. The checkpointer is in memory, so a paused case is lost if the app restarts.
 - **English only** in the dashboard and advisories.
@@ -217,7 +232,7 @@ Household notes, market records and retrieved files are treated as untrusted dat
 ## Future improvements
 
 - Pilot with an extension office or cooperative in Benin, and recalibrate the risk model on real, anonymised repayment records.
-- Connect real rainfall and market-price feeds behind the existing `get_weather_signal` and `get_market_signal` tools, so the agent itself does not change.
+- Replace simulated households with real farm-size and crop-mix distributions from the World Bank EHCVM 2021/22 survey (8,032 Benin households), and with real cooperative records during a pilot.
 - Fix E04 by offering real catalogue packages when reducing the amount.
 - Deliver approved advice to farmers by SMS or USSD in French and local languages such as Fon.
 - Add officer login, a persistent checkpointer and multi-user support for a whole office.
