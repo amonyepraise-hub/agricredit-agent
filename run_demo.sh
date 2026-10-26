@@ -99,8 +99,9 @@ fi
 
 if [ "$CLI" = 1 ] && [ "$REAL" = 1 ]; then
   say "Real-data cases"
-  .venv/bin/python -m agricredit.cli cases | head -8
-  FIRST=$(.venv/bin/python -m agricredit.cli cases | head -1 | cut -d' ' -f1)
+  CASES=$(.venv/bin/python -m agricredit.cli cases)
+  printf '%s\n' "$CASES" | sed -n '1,8p'
+  FIRST=$(printf '%s\n' "$CASES" | sed -n '1p' | cut -d' ' -f1)
   say "Running $FIRST with a named officer approval"
   .venv/bin/python -m agricredit.cli run "$FIRST" --approve OFF-001
 elif [ "$CLI" = 1 ]; then

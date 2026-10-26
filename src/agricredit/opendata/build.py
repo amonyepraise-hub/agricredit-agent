@@ -235,10 +235,13 @@ def build(seed: int = 42, households_per_commune: int = 5, db_path: Path = DB_PA
     maize_communes = [lid for lid in by_commune if any(c == "maize" for _, c in by_commune[lid])]
     if maize_communes:
         driest = sorted(maize_communes, key=lambda k: weather[k])
-        add_case(driest[0], "maize", f"REAL rainfall: driest commune this season ({weather[driest[0]]:+.1f}% vs 1991-2020, NASA POWER)")
+        low = "driest commune" if weather[driest[0]] < 0 else "lowest rainfall relative to normal"
+        add_case(driest[0], "maize", f"REAL rainfall: {low} this season ({weather[driest[0]]:+.1f}% vs 1991-2020, NASA POWER)")
         add_case(driest[-1], "maize", f"REAL rainfall: wettest commune this season ({weather[driest[-1]]:+.1f}%)")
-        normal = min(maize_communes, key=lambda k: abs(weather[k]))
-        add_case(normal, "maize", f"REAL rainfall: near-normal season ({weather[normal]:+.1f}%)")
+        taken = {driest[0], driest[-1]}
+        normal = min((k for k in maize_communes if k not in taken), key=lambda k: abs(weather[k]), default=None)
+        if normal:
+            add_case(normal, "maize", f"REAL rainfall: closest to normal this season ({weather[normal]:+.1f}%)")
         drops = [(v, m["market_centre"]) for m in markets if "maize" in priced.get(m["market_centre"], set())
                  for v in [latest_vs_median(m["market_centre"], "maize")] if v is not None]
         if drops:
