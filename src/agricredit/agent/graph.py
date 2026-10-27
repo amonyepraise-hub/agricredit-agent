@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import re
 import operator
 from typing import Annotated, Any, Optional, TypedDict
 
@@ -328,6 +329,78 @@ async def evidence_sufficiency(state: AgentState) -> dict:
             "activity": [act("evidence_sufficiency", f"Evidence {verdict}; {len(warnings)} warning(s)", gaps=gaps, warnings=warnings)]}
 
 
+# --------------------------------------------------------------------------
+# Narrative claim guard: small models can restate the right numbers and still draw the wrong
+# conclusion ("-19% suggests drought" when the drought rule says no). Key findings are computed
+# deterministically, handed to the model as the only allowed conclusions, then checked in its text.
+# --------------------------------------------------------------------------
+
+_NEGATION = re.compile(r"\b(no|not|without|isn't|wasn't|does not|did not|below the .{0,20}threshold|short of|above the .{0,20}threshold)\b", re.I)
+
+
+def key_findings(state) -> dict:
+    a, w = state.get("assessment"), state.get("weather")
+    out: dict = {"statements": []}
+    if w:
+        anom, drought = float(w["rainfall_anomaly_pct"]), bool(w["drought_indicator"])
+        out["drought"] = drought
+        out["statements"].append(
+            f"DROUGHT: yes. Rainfall is {anom:+.1f}% vs its baseline, at or beyond the -20% drought threshold." if drought else
+            f"DROUGHT: no. Rainfall is {anom:+.1f}% vs its baseline, which does not reach the -20% drought threshold.")
+        for e in w.get("evidence", []):
+            if e["evidence_id"].startswith("weather_crosscheck:"):
+                m = re.search(r"\(([+-]?\d+(?:\.\d+)?)% vs its own baseline", e["value"])
+                if m:
+                    other = float(m.group(1))
+                    agree = abs(other - anom) <= 15 and (other < 0) == (anom < 0)
+                    out["sources_agree"] = agree
+                    out["statements"].append(
+                        f"RAINFALL CROSS-CHECK: the independent source shows {other:+.1f}%, so the two sources "
+                        + ("broadly agree." if agree else "DISAGREE; do not say the cross-check confirms anything."))
+    if a:
+        cap = float(a["base_repayment_capacity_ratio"])
+        out["can_repay"] = cap >= 1.0
+        out["statements"].append(
+            f"REPAYMENT: base capacity {cap:.2f}x is " + ("at least 1.0x: expected cash covers the loan in a normal season."
+                                                         if cap >= 1.0 else "below 1.0x: expected cash does NOT cover the loan, even in a normal season."))
+    commune = [e for e in state["household"]["evidence"] if str(e["evidence_id"]).startswith("commune_yield:")]
+    out["commune_yields"] = {m.group(1).replace(",", "") for e in commune for m in [re.match(r"([\d,]+) kg/ha", e["value"])] if m}
+    if commune:
+        out["statements"].append("YIELDS: 'Official ... yield' items are commune averages from government statistics, "
+                                 "not this household's own yields.")
+    return out
+
+
+def unsupported_claims(text: str, findings: dict) -> list[str]:
+    problems = []
+    sentences = re.split(r"(?<=[.!?])\s+|\n+", text)
+    if findings.get("drought") is False:
+        for s_ in sentences:
+            if re.search(r"drought", s_, re.I) and not _NEGATION.search(s_):
+                problems.append("claims drought, but the drought indicator is off")
+                break
+    if findings.get("sources_agree") is False:
+        for s_ in sentences:
+            if re.search(r"cross.?check", s_, re.I) and re.search(r"\b(confirm|support|corroborat|agree)", s_, re.I) \
+                    and not _NEGATION.search(s_):
+                problems.append("says the rainfall cross-check confirms, but the sources disagree")
+                break
+    if findings.get("can_repay") is False:
+        for s_ in sentences:
+            if re.search(r"(potential|able|capacity|sufficient|enough) to (re)?pay|can (re)?pay|will (re)?pay", s_, re.I) \
+                    and not _NEGATION.search(s_):
+                problems.append("suggests the household can repay, but base capacity is below 1.0x")
+                break
+    if findings.get("commune_yields"):
+        for s_ in sentences:
+            nums = {n.replace(",", "") for n in re.findall(r"\d[\d,]*", s_)}
+            if re.search(r"household[^.]{0,80}\b(has|had|have|with|achieved|produces?)\b[^.]{0,40}yield", s_, re.I) \
+                    and nums & findings["commune_yields"]:
+                problems.append("presents the commune's official average yield as this household's own yield")
+                break
+    return problems
+
+
 def _template_narrative(state, decision, warnings) -> str:
     a, c = state.get("assessment"), state["case"]
     lines = [f"Draft for officer review on case {c['case_id']} ({c['package']['name']}, {c['requested_amount_fcfa']:,.0f} FCFA).",
@@ -362,7 +435,10 @@ async def draft_advisory(state: AgentState) -> dict:
                     + ([{"id": e["evidence_id"], "label": e["label"], "value": e["value"]} for e in a["evidence"]] if a else []),
     }
     notes = h.get("notes") if not h.get("notes_flagged_as_injection") else None
+    findings = key_findings(state)
     prompt = (
+        "KEY FINDINGS (computed by the system; your text must agree with every one of them):\n- "
+        + "\n- ".join(findings["statements"] or ["none"]) + "\n\n"
         "Write the explanation section of a DRAFT credit advisory for the extension officer, in plain English, "
         "120-200 words. Explain why the recommendation follows from the evidence. Cite evidence IDs in square brackets, "
         "e.g. [repayment:LOAN-HH-00001-1]. Use ONLY figures that appear in FACTS; do not compute new ones. If the "
@@ -379,8 +455,21 @@ async def draft_advisory(state: AgentState) -> dict:
         out = llm.chat([{"role": "system", "content": llm.SYSTEM}, {"role": "user", "content": prompt}], purpose="draft_narrative",
                        json_mode=False, run_id=state["run_id"], case_id=c["case_id"], node="draft_advisory",
                        stub_response=template).strip()
+        claims = unsupported_claims(out, findings) if out else []
+        if claims:
+            msgs.append(act("draft_advisory", f"Narrative contradicted the evidence ({'; '.join(claims)}): asked the model to correct it"))
+            out = llm.chat([{"role": "system", "content": llm.SYSTEM}, {"role": "user", "content": prompt},
+                            {"role": "assistant", "content": out},
+                            {"role": "user", "content": "Your text contradicts the KEY FINDINGS: " + "; ".join(claims)
+                             + ". Rewrite it so it agrees with every key finding. Return only the explanation text."}],
+                           purpose="draft_narrative_retry", json_mode=False, run_id=state["run_id"], case_id=c["case_id"],
+                           node="draft_advisory", stub_response=template).strip()
+            claims = unsupported_claims(out, findings) if out else []
         bad = llm.unsupported_numbers(out, facts)
-        if not out:
+        if claims:
+            warnings.append(f"LLM narrative discarded: it contradicted the evidence ({'; '.join(claims)})")
+            msgs.append(act("draft_advisory", "LLM narrative still contradicted the evidence: template used"))
+        elif not out:
             msgs.append(act("draft_advisory", "LLM returned empty text: template used"))
         elif bad:
             warnings.append(f"LLM narrative discarded: it contained figures not present in the evidence ({bad[:4]})")
