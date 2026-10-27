@@ -17,6 +17,7 @@ import altair as alt  # noqa: E402
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
+from agricredit.agent.graph import translate_explanation  # noqa: E402
 from agricredit.agent.runner import AgentRunner  # noqa: E402
 from agricredit.approval import gate  # noqa: E402
 from agricredit.audit.logger import read_jsonl  # noqa: E402
@@ -219,8 +220,22 @@ if adv:
         st.error(f"Missing evidence: {g}")
     for w in adv["data_quality_warnings"]:
         st.warning(w)
-    with st.expander(f"Explanation (written by {adv['narrative_author']})", expanded=True):
-        st.write(adv["narrative"])
+    src_lang = state.get("narrative_language", "en")
+    other = "en" if src_lang == "fr" else "fr"
+    show_other = st.toggle("Show the explanation in English" if other == "en" else "Afficher l'explication en français",
+                           key=f"translate-{run_id}")
+    text, author = adv["narrative"], adv["narrative_author"]
+    if show_other:
+        cache = st.session_state.setdefault("translations", {})
+        key = (run_id, adv["recommendation_hash"], other)
+        if key not in cache:
+            with st.spinner("Translating with the open-weight model..." if s.is_open_weight_backend else "Translating..."):
+                cache[key] = translate_explanation(state, other)
+        text, author = cache[key]
+    with st.expander(f"Explanation (written by {author})", expanded=True):
+        st.write(text)
+        if show_other:
+            st.caption("Reading translation only. The draft the officer approves keeps the original text.")
     with st.expander("Assumptions"):
         for x in adv["assumptions"]:
             st.markdown(f"- {x}")

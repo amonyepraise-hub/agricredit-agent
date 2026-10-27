@@ -55,6 +55,7 @@ class AgentState(TypedDict, total=False):
     release: Optional[dict]
     officer_outcome: Optional[dict]
     llm_used: list[str]
+    narrative_language: str
     activity: Annotated[list[dict], operator.add]
 
 
@@ -428,9 +429,13 @@ def _fr(x: float, nd: int = 2) -> str:
     return f"{x:,.{nd}f}".replace(",", "\u202f").replace(".", ",")
 
 
+def _rv(x) -> str:
+    return getattr(x, "value", x)
+
+
 def _template_narrative_fr(state, decision, warnings) -> str:
     a, c = state.get("assessment"), state["case"]
-    rec = decision["recommendation"].value
+    rec = _rv(decision["recommendation"])
     lines = [f"Projet d'avis soumis à la décision de l'agent pour le dossier {c['case_id']} "
              f"({c['package']['name']}, {_fr(c['requested_amount_fcfa'], 0)} FCFA).",
              f"Recommandation : {FR_RECOMMENDATION.get(rec, rec)}."]
@@ -448,12 +453,12 @@ def _template_narrative_fr(state, decision, warnings) -> str:
     return " ".join(lines)
 
 
-def _template_narrative(state, decision, warnings) -> str:
-    if get_settings().advisory_language == "fr":
+def _template_narrative(state, decision, warnings, lang: str | None = None) -> str:
+    if (lang or get_settings().advisory_language) == "fr":
         return _template_narrative_fr(state, decision, warnings)
     a, c = state.get("assessment"), state["case"]
     lines = [f"Draft for officer review on case {c['case_id']} ({c['package']['name']}, {c['requested_amount_fcfa']:,.0f} FCFA).",
-             f"Recommendation: {decision['recommendation'].value}. {decision['rationale']}"]
+             f"Recommendation: {_rv(decision['recommendation'])}. {decision['rationale']}"]
     if a:
         lines.append(f"Probability of default {a['probability_of_default']:.3f}; repayment capacity "
                      f"{a['base_repayment_capacity_ratio']:.2f}x base and {a['stress_repayment_capacity_ratio']:.2f}x under the combined shock.")
@@ -548,10 +553,44 @@ async def draft_advisory(state: AgentState) -> dict:
               details={"recommendation": adv["recommendation"], "recommendation_hash": adv["recommendation_hash"],
                        "evidence_items": len(adv["evidence"]), "narrative_author": author})
     return {"advisory": adv, "decision": _jsonable(decision), "status": "AWAITING_APPROVAL", "llm_used": used,
+            "narrative_language": "fr" if get_settings().advisory_language == "fr" else "en",
             "warnings": warnings,
             "activity": msgs + [act("draft_advisory", f"Draft stored: {adv['recommendation']} "
                                                       f"(hash {adv['recommendation_hash'][:12]}...), {len(adv['evidence'])} cited evidence items. "
                                                       "Waiting for a named officer.", tool="agricredit.draft_credit_advisory")]}
+
+
+LANG_NAME = {"en": "English", "fr": "French"}
+
+
+def translate_explanation(state: dict, target: str) -> tuple[str, str]:
+    """Reading translation of a drafted explanation (English <-> French) for the officer. The approved record keeps
+    the original. Model-written text is translated by the same open-weight model and passes the same number and
+    claim checks; template text is simply re-rendered in the other language."""
+    adv = state["advisory"]
+    src = state.get("narrative_language", "en")
+    if target == src:
+        return adv["narrative"], adv["narrative_author"]
+    template = _template_narrative(state, state["decision"], adv["data_quality_warnings"], lang=target)
+    if adv["narrative_author"].startswith("template") or not get_settings().is_open_weight_backend:
+        return template, f"template (no LLM), {LANG_NAME[target]}"
+    prompt = (f"Translate this draft credit-advisory explanation from {LANG_NAME[src]} into {LANG_NAME[target]}. "
+              "Keep every number exactly as written and every evidence ID in square brackets unchanged. Add nothing and "
+              f"remove nothing. Return only the translation.\n\n{adv['narrative']}")
+    try:
+        out = llm.chat([{"role": "system", "content": llm.SYSTEM}, {"role": "user", "content": prompt}], purpose="translate",
+                       json_mode=False, run_id=state["run_id"], case_id=state["case_id"], node="translate",
+                       stub_response=template).strip()
+    except llm.LLMUnavailable:
+        return template, f"template (model unavailable for translation), {LANG_NAME[target]}"
+    source_numbers = llm._numbers_in(adv["narrative"])
+    # A translation must carry the original's numbers and no others (small ones included: capacities are small).
+    bad = [n for n in llm._numbers_in(out) if not any(abs(n - a) <= max(0.011, 0.005 * abs(a)) for a in source_numbers)]
+    claims = unsupported_claims(out, key_findings(state)) if out else ["empty translation"]
+    if not out or bad or claims:
+        why = "; ".join(claims) if claims else f"figures not in the original {bad[:3]}"
+        return template, f"template; the translation was rejected ({why})"
+    return out, f"{get_settings().model_version}, translated from {LANG_NAME[src]}"
 
 
 def _jsonable(d: dict) -> dict:
