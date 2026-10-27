@@ -466,13 +466,16 @@ async def draft_advisory(state: AgentState) -> dict:
                            node="draft_advisory", stub_response=template).strip()
             claims = unsupported_claims(out, findings) if out else []
         bad = llm.unsupported_numbers(out, facts)
+        # A rejected draft is about the model's writing, not the household: it is shown in the explanation's
+        # author line and the activity log, and does not become an officer action or lower confidence.
+        model = get_settings().model_version
         if claims:
-            warnings.append(f"LLM narrative discarded: it contradicted the evidence ({'; '.join(claims)})")
+            author = f"template (no LLM); the {model} draft was rejected because it {'; '.join(claims)}"
             msgs.append(act("draft_advisory", "LLM narrative still contradicted the evidence: template used"))
         elif not out:
             msgs.append(act("draft_advisory", "LLM returned empty text: template used"))
         elif bad:
-            warnings.append(f"LLM narrative discarded: it contained figures not present in the evidence ({bad[:4]})")
+            author = f"template (no LLM); the {model} draft was rejected for figures not in the evidence ({bad[:4]})"
             msgs.append(act("draft_advisory", f"LLM narrative rejected for unsupported figures {bad[:4]}: template used"))
         else:
             narrative, author = out, get_settings().model_version
