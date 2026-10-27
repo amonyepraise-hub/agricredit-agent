@@ -123,6 +123,11 @@ def allowed_numbers(facts) -> set[float]:
         elif isinstance(o, str):
             for n in _numbers_in(o):
                 vals.add(n)
+            # Signed figures ("-45.3%", "−19.1%", "+25.7%") are skipped by _numbers_in's look-behind (it keeps IDs
+            # like "HH-10196" from splitting); the model may restate them without the sign ("a fall of 45.3%").
+            norm = re.sub(r"(?<![\d,])(\d+),(\d{1,2})(?![\d,])", r"\1.\2", o.replace("\u2212", "-"))
+            for m in re.finditer(r"(?<![A-Za-z0-9])[-+](\d+(?:\.\d+)?)", norm):
+                vals.add(float(m.group(1)))
         elif isinstance(o, dict):
             for v in o.values():
                 walk(v)
