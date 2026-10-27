@@ -30,7 +30,9 @@ def decide(assessment: dict | None, blocking_gaps: list[str], warnings: list[str
            policy: dict, weather_from_cache: bool = False) -> dict:
     out = _decide(assessment, blocking_gaps, warnings, requested_amount, policy, weather_from_cache)
     if warnings and out["recommendation"] not in (R.REQUEST_MORE_EVIDENCE, R.RECOMMEND_WITH_CONDITIONS):
-        out["officer_action"] += " Before approval, also resolve: " + "; ".join(warnings) + "."
+        # Warnings include market-wide conditions (a price fall, a dry season) that an officer cannot "resolve", only
+        # weigh, so they are listed as points to take into account.
+        out["officer_action"] += " Before approval, also take into account: " + "; ".join(warnings) + "."
     return out
 
 
@@ -102,7 +104,7 @@ def _decide(assessment: dict | None, blocking_gaps: list[str], warnings: list[st
     why += warnings
     return _out(R.RECOMMEND_WITH_CONDITIONS, None, False,
                 f"Serviceable under stress ({comb:.2f}x combined shock), but: " + "; ".join(why) + ".",
-                "Resolve the listed warnings before approval: " + "; ".join(warnings) if warnings
+                "Before approval, check or take into account the listed warnings: " + "; ".join(warnings) if warnings
                 else "Approve only with conditions addressing the elevated risk.", conf)
 
 
