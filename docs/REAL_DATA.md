@@ -48,6 +48,32 @@ Nothing in the agent graph changed. The builder writes the same tables the MCP t
 
 Real mode also uses its own policy file (`fs_mcp_root/policy/agent_policy_real.json`), read through the official MCP filesystem server as before. It maps each WFP market to its nearest neighbour for the stale-price fallback and looks back 52 weeks, because prices are monthly.
 
+## What real data changed in the agent
+
+Running on real data exposed four things the synthetic data never could, and each one changed the agent:
+
+1. **Rainfall sources disagree.** NASA POWER's 2026 season was 56% wetter than its own history in the median commune; ERA5 was near normal. ERA5 became primary, and NASA is shown beside it with the gap.
+2. **Prices are seasonal.** Maize is cheapest just after harvest, so comparing with a 12-month median calls every harvest a shock. The agent now compares the latest price with the same month in earlier years (`seasonal_anomaly_pct`), and warns when it is 10% or more below the usual level.
+3. **Repayment at harvest means selling at the bottom.** When a multi-year monthly history exists, the agent also computes capacity if repayment moves to the month (up to four months later) when prices have usually been highest, net of 5% storage loss and the extra interest. If that makes the loan serviceable, the policy can recommend it with a condition: repayment scheduled for that month, with safe storage (for example warrantage). It is marked as relying on the usual seasonal recovery.
+4. **Small models draw wrong conclusions from right numbers.** A real qwen2.5:1.5b draft said "suggesting a drought" at -19.1% (the drought line is -20%) and that a disagreeing cross-check "confirms" it. The agent now computes key findings itself, gives them to the model, checks the text against them (in English and French), asks for one correction, and otherwise uses its template.
+
+It also fixed two of our own assumptions: packages are never larger than the plot, and real packages credit a +30% yield gain from on-farm trials in Benin instead of a hypothetical figure. Rice revenue uses paddy or local rice prices, never imported rice.
+
+## French advisories
+
+Choose **Français** under "Explanation language" in the dashboard, or run `python -m agricredit.cli run BEN-2001 --lang fr`. The model writes the explanation in French; the template and the safety checks also work in French. Figures and the recommendation do not depend on the language.
+
+## Real farm sizes (EHCVM 2021/22)
+
+1. Create a free account at https://microdata.worldbank.org/catalog/6272 and download the Stata files.
+2. Copy `s16a_me_ben2021.dta` and `ehcvm_welfare_ben2021.dta` into `data/real/ehcvm/` (never committed: the licence forbids redistribution).
+3. Run `.venv/bin/python -m agricredit.opendata ehcvm`. It writes only department-level, survey-weighted aggregates (crop shares and area quantiles; cells under 20 households suppressed) to `data/real/processed/ehcvm_farm_profile.csv`.
+4. Rebuild: `.venv/bin/python -m agricredit.opendata build`, then `./run_demo.sh --real`.
+
+## Evaluation on real data
+
+`./run_demo.sh --real --evals` runs every real case and writes `EVALS_REAL.md`: source coverage, decision-rule violations, seasonal-flag errors, explanations contradicting the key findings, model explanations kept, and reproducibility.
+
 ## Freshness in real mode
 
 | Data | Limit | Why |
