@@ -12,7 +12,7 @@
       "retrieved_at": "2026-10-26T22:00:00"
     },
     "wfp_hdx": {
-      "rows": 8401,
+      "rows": 6933,
       "markets": 50,
       "latest_date": "2026-09-15",
       "retrieved_at": "2026-10-26T22:00:00"
@@ -30,5 +30,5 @@
     }
   },
   "warnings": [],
-  "elapsed_s": 1489.2
+  "elapsed_s": 5.6
 }

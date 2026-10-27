@@ -1,0 +1,94 @@
+{
+  "policy_version": "agricredit-policy-2026.10-real-open-data-v1",
+  "description": "Decision thresholds for AgriCredit Agent. Read by the agent through the official MCP filesystem server and by agricredit-mcp's draft guard. Changing this file changes advisories; every advisory records policy_version in its assumptions.",
+  "tool_retry": {
+    "max_attempts": 2
+  },
+  "weather": {
+    "lookback_days": 180,
+    "allow_cache_fallback": true,
+    "max_cached_age_days_for_seasonal_recommendation": 21,
+    "confidence_penalty_for_cache": 0.15
+  },
+  "market": {
+    "lookback_weeks": 52,
+    "stale_recovery": "alternate_centre",
+    "max_alternate_centres": 1,
+    "alternate_centres": {
+      "Abomey-Market": "Bohicon-Market",
+      "Affame-Market": "Dasso-Market",
+      "Ahidahome Porto-Novo-Market": "Ouando-Market",
+      "Azove-Market": "Dogbo-Market",
+      "Azowlisse-Market": "Hozin-Market",
+      "Banikoara-Market": "Kerou-Market",
+      "Bassila-Market": "Djougou-Market",
+      "Bembereke-Market": "Sinende-Market",
+      "Bohicon-Market": "Abomey-Market",
+      "Cobly-Market": "Tanguieta-Market",
+      "Come-Market": "Sekou-Market",
+      "Cove-Market": "Kpedekpo-Market",
+      "Dangbo-Market": "Hozin-Market",
+      "Dantokpa-Market": "So-Ava-Market",
+      "Dassa-Zoume-Market": "Glazoue-Market",
+      "Dasso-Market": "Affame-Market",
+      "Djougou-Market": "Kassoua-Allah-Market",
+      "Dogbo-Market": "Azove-Market",
+      "Glazoue-Market": "Dassa-Zoume-Market",
+      "Hozin-Market": "Dangbo-Market",
+      "Ikpenle-Market": "Tatonnoukon-Market",
+      "Kalale-Market": "Nikki-Market",
+      "Karimama-Market": "Malanville CBM-Market",
+      "Kassoua-Allah-Market": "Djougou-Market",
+      "Klouekanme-Market": "Abomey-Market",
+      "Kpedekpo-Market": "Cove-Market",
+      "Kerou-Market": "Sinende-Market",
+      "Ketou-Market": "Kpedekpo-Market",
+      "Malanville CBM-Market": "Karimama-Market",
+      "Natitingou-Market": "Tanguieta-Market",
+      "Nikki-Market": "Kalale-Market",
+      "Ouando-Market": "Ahidahome Porto-Novo-Market",
+      "Ouesse-Market": "Tchaourou-Market",
+      "Ouegbo-Market": "Sehoue-Market",
+      "Parakou-Market": "Tchaourou-Market",
+      "Pobe-Market": "Tatonnoukon-Market",
+      "Pehunco-Market": "Sinende-Market",
+      "Savalou-Market": "Glazoue-Market",
+      "Sehoue-Market": "Ouegbo-Market",
+      "Sinende-Market": "Bembereke-Market",
+      "So-Ava-Market": "Dantokpa-Market",
+      "Sedje-Denou-Market": "Ze-Market",
+      "Sekou-Market": "Ze-Market",
+      "Tanguieta-Market": "Natitingou-Market",
+      "Tatonnoukon-Market": "Pobe-Market",
+      "Tchaourou-Market": "Ouesse-Market",
+      "Yoko-Market": "Hozin-Market",
+      "Zinvie-Market": "Ze-Market",
+      "Zogbodomey-Market": "Cove-Market",
+      "Ze-Market": "Sedje-Denou-Market"
+    },
+    "conflict_policy": "never_average_or_pick; request officer verification",
+    "price_drop_warning_pct": -10.0
+  },
+  "repayment": {
+    "require_history": true
+  },
+  "yield": {
+    "min_seasons": 2
+  },
+  "decision": {
+    "pd_recommend_max": 0.1,
+    "pd_no_recommendation_min": 0.35,
+    "min_base_capacity_for_recommend": 1.2,
+    "min_combined_capacity_for_recommend": 1.0,
+    "min_reduced_offer_fcfa": 40000,
+    "allow_deferred_repayment": true
+  },
+  "forbidden_decision_terms": [
+    "APPROVED CREDIT",
+    "DISBURSE CREDIT",
+    "LOAN ACCEPTED",
+    "CREDIT APPROVED",
+    "DISBURSE"
+  ],
+  "data_mode": "real-open-data"
+}
