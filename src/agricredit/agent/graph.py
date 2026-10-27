@@ -254,10 +254,20 @@ async def get_market_evidence(state: AgentState) -> dict:
             gaps.append(f"no current {c['crop']} price: latest observation at {c['market_centre']} is {m['age_days']:.0f} days "
                         f"old and the alternate centre is also stale or unavailable")
             return {"market": m, "blocking_gaps": gaps, "warnings": warnings, "activity": msgs}
-    if m["price_anomaly_pct"] is not None and m["price_anomaly_pct"] <= p["market"]["price_drop_warning_pct"]:
-        warnings.append(f"latest {c['crop']} price is {m['price_anomaly_pct']:+.1f}% vs the {plan['market_lookback_weeks']}-week median")
+    seasonal = m.get("seasonal_anomaly_pct")
+    if seasonal is not None:
+        # With a multi-year history, compare with the same month in earlier years, so a normal post-harvest dip is not
+        # mistaken for a shock (and a real collapse is not hidden by an already-low recent median).
+        month = dt.datetime.fromisoformat(str(m["observation_timestamp"])).strftime("%B")
+        if seasonal <= p["market"]["price_drop_warning_pct"]:
+            warnings.append(f"latest {c['crop']} price is {seasonal:+.1f}% vs the usual {month} price ({m['seasonal_years']} median)")
+        detail = f"{seasonal:+.1f}% vs the usual {month} price"
+    else:
+        if m["price_anomaly_pct"] is not None and m["price_anomaly_pct"] <= p["market"]["price_drop_warning_pct"]:
+            warnings.append(f"latest {c['crop']} price is {m['price_anomaly_pct']:+.1f}% vs the {plan['market_lookback_weeks']}-week median")
+        detail = f"{m['price_anomaly_pct']:+.1f}% vs median"
     msgs.append(act("get_market_evidence", f"{c['crop']} {m['latest_price_fcfa_per_kg']} FCFA/kg at {m['market_centre']} "
-                                           f"({m['price_anomaly_pct']:+.1f}% vs median)", tool="agricredit.get_market_signal"))
+                                           f"({detail})", tool="agricredit.get_market_signal"))
     return {"market": m, "blocking_gaps": gaps, "warnings": warnings, "activity": msgs}
 
 

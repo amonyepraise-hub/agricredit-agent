@@ -88,6 +88,7 @@ if [ "$REAL" = 1 ]; then
   export AGRICREDIT_MARKET_FRESHNESS_DAYS=90   # WFP prices are monthly and published with a lag
   export AGRICREDIT_WEATHER_FRESHNESS_DAYS=14  # satellite rainfall arrives a few days late
   export AGRICREDIT_TARGET_DEFAULT_RATE=0.094  # BCEAO: Benin microfinance portfolio degradation rate, Dec 2024
+  export AGRICREDIT_UPLIFT_REALISATION=1.0     # real packages carry a sourced yield gain (see opendata/sources.py)
   AGRICREDIT_AS_OF=$(.venv/bin/python -c "import json; print(json.load(open('$SNAP'))['as_of'])")
   export AGRICREDIT_AS_OF
   if [ ! -f data/risk_model_real.joblib ] || [ data/agricredit_real.db -nt data/risk_model_real.joblib ]; then

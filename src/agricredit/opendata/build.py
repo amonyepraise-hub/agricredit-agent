@@ -20,7 +20,7 @@ import numpy as np
 from ..config import REPO_ROOT
 from .fetch import PROCESSED, read_csv
 from .geo import haversine_km
-from .sources import FERTILISER_PRICE_FCFA_PER_50KG as FERT, MAIZE_DOSE_KG_PER_HA as DOSE, SOURCES, sources_markdown
+from .sources import FERTILISER_PRICE_FCFA_PER_50KG as FERT, FULL_DOSE_YIELD_GAIN, MAIZE_DOSE_KG_PER_HA as DOSE, SOURCES, sources_markdown
 
 DB_PATH = REPO_ROOT / "data" / "agricredit_real.db"
 POLICY_BASE = REPO_ROOT / "fs_mcp_root" / "policy" / "agent_policy.json"
@@ -51,12 +51,16 @@ def packages() -> list[tuple]:
         for code, ha in (("HALF", 0.5), ("1HA", 1.0), ("2HA", 2.0)):
             name = (f"{crop.title()} fertiliser {ha:g} ha: {DOSE['NPK'] * ha / 50:g} x 50 kg NPK + {DOSE['urea'] * ha / 50:g} x 50 kg urea "
                     f"at 2025/26 subsidised prices")
-            out.append((f"PKG-{crop.upper()}-{code}", name, crop, package_cost(ha), 0.20))
+            out.append((f"PKG-{crop.upper()}-{code}", name, crop, package_cost(ha), FULL_DOSE_YIELD_GAIN))
     return out
 
 
+MIN_CASE_PLOT_HA = 0.4  # smaller plots are not offered a package (the smallest package covers 0.5 ha)
+
+
 def _pick_package(crop: str, area: float) -> tuple[str, float]:
-    code, ha = ("HALF", 0.5) if area < 0.75 else (("1HA", 1.0) if area < 1.5 else ("2HA", 2.0))
+    """The largest package that does not exceed the plot (never fertiliser for land the household does not farm)."""
+    code, ha = ("HALF", 0.5) if area < 1.0 else (("1HA", 1.0) if area < 2.0 else ("2HA", 2.0))
     return f"PKG-{crop.upper()}-{code}", package_cost(ha)
 
 
@@ -210,10 +214,18 @@ def build(seed: int = 42, households_per_commune: int = 5, db_path: Path = DB_PA
     def first_plot(hh: str):
         return cur.execute("SELECT crop, area_ha FROM plots WHERE plot_id = ?", (hh + "-P1",)).fetchone()
 
-    def latest_vs_median(centre: str, crop: str) -> float | None:
-        ps = [r[0] for r in cur.execute("SELECT price_fcfa_per_kg FROM market_prices WHERE market_centre = ? AND commodity = ? "
-                                        "ORDER BY observation_timestamp DESC LIMIT 12", (centre, crop))]
-        return (ps[0] / float(np.median(ps)) - 1) * 100 if len(ps) >= 4 else None
+    def latest_vs_usual(centre: str, crop: str) -> tuple[float, str] | None:
+        """Latest price vs the median of the same calendar month in earlier years (seasonality-aware)."""
+        rows = cur.execute("SELECT price_fcfa_per_kg, observation_timestamp FROM market_prices WHERE market_centre = ? "
+                           "AND commodity = ? ORDER BY observation_timestamp DESC", (centre, crop)).fetchall()
+        if not rows:
+            return None
+        latest_p, latest_t = rows[0][0], dt.datetime.fromisoformat(rows[0][1])
+        same = [p_ for p_, t_ in rows[1:] if dt.datetime.fromisoformat(t_).month == latest_t.month
+                and dt.datetime.fromisoformat(t_).year < latest_t.year]
+        if len(same) < 2:
+            return None
+        return (latest_p / float(np.median(same)) - 1) * 100, latest_t.strftime("%B")
 
     cases, used_hh = [], set()
 
@@ -226,6 +238,8 @@ def build(seed: int = 42, households_per_commune: int = 5, db_path: Path = DB_PA
             if hh in used_hh or c1 != crop:
                 continue
             _, area = first_plot(hh)
+            if area < MIN_CASE_PLOT_HA:
+                continue
             pkg, amount = _pick_package(crop, area)
             used_hh.add(hh)
             cases.append((f"BEN-{2001 + len(cases):04d}", hh, pkg, "LP-SEASONAL", crop, mk[0], season, amount, 6,
@@ -243,15 +257,15 @@ def build(seed: int = 42, households_per_commune: int = 5, db_path: Path = DB_PA
         normal = min((k for k in maize_communes if k not in taken), key=lambda k: abs(weather[k]), default=None)
         if normal:
             add_case(normal, "maize", f"REAL rainfall: closest to normal this season ({weather[normal]:+.1f}%)")
-        drops = [(v, m["market_centre"]) for m in markets if "maize" in priced.get(m["market_centre"], set())
-                 for v in [latest_vs_median(m["market_centre"], "maize")] if v is not None]
+        drops = [(v[0], m["market_centre"], v[1]) for m in markets if "maize" in priced.get(m["market_centre"], set())
+                 for v in [latest_vs_usual(m["market_centre"], "maize")] if v is not None]
         if drops:
-            v, centre = min(drops)
+            v, centre, month = min(drops)
             m = next(x for x in markets if x["market_centre"] == centre)
             near = sorted(maize_communes, key=lambda k: haversine_km(float(communes[k]["lat"]), float(communes[k]["lon"]),
                                                                      float(m["lat"]), float(m["lon"])))
             for k in near[:3]:
-                if add_case(k, "maize", f"REAL prices: largest latest maize price move ({v:+.1f}% vs 12-month median at {centre}, WFP)"):
+                if add_case(k, "maize", f"REAL prices: largest maize price fall vs the usual {month} price ({v:+.1f}% at {centre}, WFP)"):
                     break
     for lid in sorted(by_commune, key=lambda k: weather[k]):
         for crop in ("rice",):
@@ -280,6 +294,7 @@ def build(seed: int = 42, households_per_commune: int = 5, db_path: Path = DB_PA
             alts[m["market_centre"]] = others[0][1]
     policy["market"]["alternate_centres"] = alts
     policy["market"]["lookback_weeks"] = 52
+    policy["decision"]["allow_deferred_repayment"] = True  # needs the multi-year monthly WFP history
     policy["weather"]["lookback_days"] = 180
     policy_out.write_text(json.dumps(policy, indent=2, ensure_ascii=False))
     sources_md.parent.mkdir(parents=True, exist_ok=True)

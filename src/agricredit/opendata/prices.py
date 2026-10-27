@@ -57,6 +57,18 @@ def market_token(name: str) -> str:
     return f"{clean}-Market"
 
 
+def farmer_variety(crop: str, counts: Counter) -> str | None:
+    """The variety a smallholder actually sells. For rice that is paddy (or local milled rice), never imported rice,
+    whose shop price says nothing about a Beninese farmer's revenue. Otherwise the most-reported variety."""
+    if crop == "rice":
+        for key in ("paddy", "local"):
+            hits = [(n, v) for v, n in counts.items() if key in v.lower() and "import" not in v.lower()]
+            if hits:
+                return max(hits)[1]
+        return None
+    return counts.most_common(1)[0][0]
+
+
 def find_csv_url(package: dict) -> str:
     if not package.get("success"):
         raise FetchError(f"HDX package_show failed: {str(package)[:300]}")
@@ -112,7 +124,9 @@ def parse_prices(raw: bytes, since: dt.date, csv_url: str) -> tuple[list[dict], 
         by_key[(r["crop"], r["market"])].append(r)
     out, markets = [], {}
     for (crop, market), rs in sorted(by_key.items()):
-        variety = Counter(r["commodity"] for r in rs).most_common(1)[0][0]
+        variety = farmer_variety(crop, Counter(r["commodity"] for r in rs))
+        if variety is None:
+            continue
         token = market_token(market)
         per_month = {}
         for r in rs:

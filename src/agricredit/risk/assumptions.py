@@ -3,6 +3,7 @@
 These are planning assumptions, not observations. Each one is reported back in
 the advisory's `assumptions` list so the officer can see and challenge it.
 """
+import os
 
 # Non-package production cost per hectare (labour, land preparation, transport, bags), FCFA/ha.
 OTHER_PRODUCTION_COST_FCFA_PER_HA = {
@@ -12,11 +13,17 @@ OTHER_PRODUCTION_COST_FCFA_PER_HA = {
 MARKETED_SHARE = {"maize": 0.75, "cotton": 1.00, "rice": 0.75, "cashew": 0.95, "soybean": 0.85}
 # Crop baseline yields (kg/ha) used only to normalise yield features across crops.
 BASELINE_YIELD_KG_HA = {"maize": 1400.0, "cotton": 900.0, "rice": 2200.0, "cashew": 650.0, "soybean": 1100.0}
-# Package uplift is applied at this fraction of the package's nominal agronomic claim.
-PACKAGE_UPLIFT_REALISATION = 0.5
+# Package uplift is applied at this fraction of the package's nominal agronomic claim. The synthetic catalogue's
+# claims are hypothetical, so only half is credited. Real mode prices packages from sourced field-trial results and
+# sets AGRICREDIT_UPLIFT_REALISATION=1.0 (see opendata/sources.py).
+PACKAGE_UPLIFT_REALISATION = float(os.getenv("AGRICREDIT_UPLIFT_REALISATION", "0.5"))
 # Yield sensitivity to rainfall deficit: each 1% of deficit beyond the tolerance band cuts yield by this %.
 RAINFALL_DEFICIT_TOLERANCE_PCT = 10.0
 RAINFALL_DEFICIT_YIELD_ELASTICITY = 0.8
+# Repayment timing (used only when a multi-year monthly price history exists): grain stored to sell later loses
+# this share of its quantity, and repayment can be moved at most this many months after the current price month.
+STORAGE_LOSS_PCT = 0.05
+MAX_DEFERRAL_MONTHS = 4
 
 
 def describe(crop: str) -> list[str]:

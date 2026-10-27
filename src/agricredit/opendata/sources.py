@@ -59,12 +59,20 @@ SOURCES: list[Source] = [
            "Amogou et al. 2021, INRAB / University of Abomey-Calavi (via FAO AGRIS)", "Scientific publication",
            "https://agris.fao.org/search/fr/records/675ab76d0e654e779babbd53",
            "Package composition per hectare", "Open abstract"),
+    Source("benin_trials", "On-farm maize trials in Benin (south, centre, north): yield gain from NPK + urea",
+           "Frontiers in Sustainable Food Systems, 2021", "CC BY 4.0", "https://doi.org/10.3389/fsufs.2021.605610",
+           "Yield gain credited to fertiliser packages (+30% for the full dose, a conservative figure)", "Open access"),
 ]
 
 # Figures transcribed from the publications above (each one is cited where it is used).
 BCEAO_BENIN_PORTFOLIO_DEGRADATION_RATE_2024 = 0.094
 FERTILISER_PRICE_FCFA_PER_50KG = {"NPK": 17000.0, "urea": 15000.0, "SSP": 14000.0}
 MAIZE_DOSE_KG_PER_HA = {"NPK": 200.0, "urea": 100.0}
+# Yield gain credited to a full-dose package over farmers' usual practice. On-farm trials in Benin's south, centre and
+# north found +13% to +38% with only HALF the recommended NPK + urea dose plus a soil inoculant (Frontiers in Sustainable
+# Food Systems, 2021, doi:10.3389/fsufs.2021.605610), and +30.6% over the control in a centre-Benin trial (Amogou et al.
+# 2021). +30% for the full dose is therefore a conservative planning figure, shown to the officer as an assumption.
+FULL_DOSE_YIELD_GAIN = 0.30
 
 
 def by_key(key: str) -> Source:
