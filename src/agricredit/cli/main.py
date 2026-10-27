@@ -90,12 +90,15 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--reject", metavar="OFFICER_ID")
     r.add_argument("--fault", action="append", default=[])
     r.add_argument("-v", "--verbose", action="store_true")
+    r.add_argument("--lang", choices=["en", "fr"], help="language of the explanation (default: AGRICREDIT_ADVISORY_LANGUAGE or en)")
     sub.add_parser("demo")
     sub.add_parser("cases")
     a = ap.parse_args(argv)
 
     if getattr(a, "fault", None):
         os.environ["AGRICREDIT_FAULTS"] = ",".join(a.fault)
+    if getattr(a, "lang", None):
+        os.environ["AGRICREDIT_ADVISORY_LANGUAGE"] = a.lang
     from ..agent.runner import AgentRunner
     runner = AgentRunner()
 

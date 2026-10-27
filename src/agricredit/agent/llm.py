@@ -91,10 +91,13 @@ def parse_json(text: str) -> dict:
 # Narrative guard: the LLM may only restate figures it was given.
 # --------------------------------------------------------------------------
 
-_NUM = re.compile(r"(?<![A-Za-z0-9-])(\d{1,3}(?:[ ,]\d{3})+|\d+(?:\.\d+)?)")
+_NUM = re.compile(r"(?<![A-Za-z0-9-])(\d{1,3}(?:[ ,]\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)")
 
 
 def _numbers_in(text: str) -> list[float]:
+    # French writing: non-breaking spaces as thousands separators ("98 000") and decimal commas ("0,87").
+    text = text.replace("\u00a0", " ").replace("\u202f", " ")
+    text = re.sub(r"(?<![\d,])(\d+),(\d{1,2})(?![\d,])", r"\1.\2", text)
     out = []
     for tok in _NUM.findall(text):
         try:

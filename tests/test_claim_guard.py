@@ -24,3 +24,20 @@ def test_guard_accepts_a_faithful_explanation():
 
 def test_guard_is_silent_when_findings_allow_the_claim():
     assert unsupported_claims("Drought this season cut yields.", {"drought": True}) == []
+
+
+def test_guard_reads_french():
+    bad = ("Les précipitations sont inférieures de 19,1 % à la normale, ce qui indique une sécheresse. "
+           "La vérification indépendante confirme cette sécheresse. Le ménage est capable de rembourser le prêt. "
+           "Le ménage a un rendement de 1 161 kg/ha pour le maïs.")
+    assert len(unsupported_claims(bad, FINDINGS)) == 4
+    good = ("Les précipitations sont inférieures de 19,1 % à la normale, sans atteindre le seuil de sécheresse de -20 %. "
+            "La source indépendante ne confirme pas ce chiffre. Le ménage n'est pas en mesure de rembourser le prêt en totalité. "
+            "Le rendement moyen officiel de la commune est de 1 161 kg/ha.")
+    assert unsupported_claims(good, FINDINGS) == []
+
+
+def test_number_guard_reads_french_number_formats():
+    from agricredit.agent.llm import _numbers_in
+    assert _numbers_in("0,87 fois ; 98 000 FCFA ; 1 242,64 kg/ha") == [0.87, 98000.0, 1242.64]
+    assert _numbers_in("98,000 FCFA and 1,242.64 kg") == [98000.0, 1242.64]

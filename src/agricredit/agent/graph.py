@@ -55,6 +55,7 @@ class AgentState(TypedDict, total=False):
     release: Optional[dict]
     officer_outcome: Optional[dict]
     llm_used: list[str]
+    narrative_language: str
     activity: Annotated[list[dict], operator.add]
 
 
@@ -254,10 +255,20 @@ async def get_market_evidence(state: AgentState) -> dict:
             gaps.append(f"no current {c['crop']} price: latest observation at {c['market_centre']} is {m['age_days']:.0f} days "
                         f"old and the alternate centre is also stale or unavailable")
             return {"market": m, "blocking_gaps": gaps, "warnings": warnings, "activity": msgs}
-    if m["price_anomaly_pct"] is not None and m["price_anomaly_pct"] <= p["market"]["price_drop_warning_pct"]:
-        warnings.append(f"latest {c['crop']} price is {m['price_anomaly_pct']:+.1f}% vs the {plan['market_lookback_weeks']}-week median")
+    seasonal = m.get("seasonal_anomaly_pct")
+    if seasonal is not None:
+        # With a multi-year history, compare with the same month in earlier years, so a normal post-harvest dip is not
+        # mistaken for a shock (and a real collapse is not hidden by an already-low recent median).
+        month = dt.datetime.fromisoformat(str(m["observation_timestamp"])).strftime("%B")
+        if seasonal <= p["market"]["price_drop_warning_pct"]:
+            warnings.append(f"latest {c['crop']} price is {seasonal:+.1f}% vs the usual {month} price ({m['seasonal_years']} median)")
+        detail = f"{seasonal:+.1f}% vs the usual {month} price"
+    else:
+        if m["price_anomaly_pct"] is not None and m["price_anomaly_pct"] <= p["market"]["price_drop_warning_pct"]:
+            warnings.append(f"latest {c['crop']} price is {m['price_anomaly_pct']:+.1f}% vs the {plan['market_lookback_weeks']}-week median")
+        detail = f"{m['price_anomaly_pct']:+.1f}% vs median"
     msgs.append(act("get_market_evidence", f"{c['crop']} {m['latest_price_fcfa_per_kg']} FCFA/kg at {m['market_centre']} "
-                                           f"({m['price_anomaly_pct']:+.1f}% vs median)", tool="agricredit.get_market_signal"))
+                                           f"({detail})", tool="agricredit.get_market_signal"))
     return {"market": m, "blocking_gaps": gaps, "warnings": warnings, "activity": msgs}
 
 
@@ -335,7 +346,16 @@ async def evidence_sufficiency(state: AgentState) -> dict:
 # deterministically, handed to the model as the only allowed conclusions, then checked in its text.
 # --------------------------------------------------------------------------
 
-_NEGATION = re.compile(r"\b(no|not|without|isn't|wasn't|does not|did not|below the .{0,20}threshold|short of|above the .{0,20}threshold)\b", re.I)
+_NEGATION = re.compile(r"\b(no|not|without|isn't|wasn't|does not|did not|below the .{0,20}threshold|short of|above the .{0,20}threshold"
+                       r"|pas|aucune?|sans|ni|n['’]|ne)\b", re.I)
+_DROUGHT = re.compile(r"drought|s[ée]cheresse", re.I)
+_CROSSCHECK = re.compile(r"cross.?check|contre.?v[ée]rification|v[ée]rification ind[ée]pendante|source ind[ée]pendante|seconde source", re.I)
+_CONFIRMS = re.compile(r"\b(confirm|support|corroborat|agree|concord|appui)", re.I)
+_CAN_REPAY = re.compile(r"(potential|able|capacity|sufficient|enough) to (re)?pay|can (re)?pay|will (re)?pay"
+                        r"|capable de rembourser|peut rembourser|pourra rembourser|en mesure de rembourser"
+                        r"|suffisante? pour rembourser|capacit[ée] (de|à) rembourser le pr[êe]t", re.I)
+_HH_YIELD = re.compile(r"(household|m[ée]nage)[^.]{0,80}\b(has|had|have|with|achieved|produces?|a|obtient|produit|avec)\b"
+                       r"[^.]{0,40}(yield|rendement)", re.I)
 
 
 def key_findings(state) -> dict:
@@ -376,35 +396,69 @@ def unsupported_claims(text: str, findings: dict) -> list[str]:
     sentences = re.split(r"(?<=[.!?])\s+|\n+", text)
     if findings.get("drought") is False:
         for s_ in sentences:
-            if re.search(r"drought", s_, re.I) and not _NEGATION.search(s_):
+            if _DROUGHT.search(s_) and not _NEGATION.search(s_):
                 problems.append("claims drought, but the drought indicator is off")
                 break
     if findings.get("sources_agree") is False:
         for s_ in sentences:
-            if re.search(r"cross.?check", s_, re.I) and re.search(r"\b(confirm|support|corroborat|agree)", s_, re.I) \
-                    and not _NEGATION.search(s_):
+            if _CROSSCHECK.search(s_) and _CONFIRMS.search(s_) and not _NEGATION.search(s_):
                 problems.append("says the rainfall cross-check confirms, but the sources disagree")
                 break
     if findings.get("can_repay") is False:
         for s_ in sentences:
-            if re.search(r"(potential|able|capacity|sufficient|enough) to (re)?pay|can (re)?pay|will (re)?pay", s_, re.I) \
-                    and not _NEGATION.search(s_):
+            if _CAN_REPAY.search(s_) and not _NEGATION.search(s_):
                 problems.append("suggests the household can repay, but base capacity is below 1.0x")
                 break
     if findings.get("commune_yields"):
         for s_ in sentences:
-            nums = {n.replace(",", "") for n in re.findall(r"\d[\d,]*", s_)}
-            if re.search(r"household[^.]{0,80}\b(has|had|have|with|achieved|produces?)\b[^.]{0,40}yield", s_, re.I) \
-                    and nums & findings["commune_yields"]:
+            nums = {str(int(n)) for n in llm._numbers_in(s_) if float(n).is_integer()}
+            if _HH_YIELD.search(s_) and nums & findings["commune_yields"]:
                 problems.append("presents the commune's official average yield as this household's own yield")
                 break
     return problems
 
 
-def _template_narrative(state, decision, warnings) -> str:
+FR_RECOMMENDATION = {
+    "RECOMMEND": "RECOMMANDER", "RECOMMEND_WITH_CONDITIONS": "RECOMMANDER SOUS CONDITIONS",
+    "REDUCE_CREDIT_AMOUNT": "RÉDUIRE LE MONTANT DU CRÉDIT", "REQUEST_MORE_EVIDENCE": "DEMANDER DES PREUVES COMPLÉMENTAIRES",
+    "NO_RECOMMENDATION": "PAS DE RECOMMANDATION",
+}
+
+
+def _fr(x: float, nd: int = 2) -> str:
+    return f"{x:,.{nd}f}".replace(",", "\u202f").replace(".", ",")
+
+
+def _rv(x) -> str:
+    return getattr(x, "value", x)
+
+
+def _template_narrative_fr(state, decision, warnings) -> str:
+    a, c = state.get("assessment"), state["case"]
+    rec = _rv(decision["recommendation"])
+    lines = [f"Projet d'avis soumis à la décision de l'agent pour le dossier {c['case_id']} "
+             f"({c['package']['name']}, {_fr(c['requested_amount_fcfa'], 0)} FCFA).",
+             f"Recommandation : {FR_RECOMMENDATION.get(rec, rec)}."]
+    if a:
+        lines.append(f"Probabilité de défaut {_fr(a['probability_of_default'], 3)} ; capacité de remboursement "
+                     f"{_fr(a['base_repayment_capacity_ratio'])} fois en situation normale et "
+                     f"{_fr(a['stress_repayment_capacity_ratio'])} fois en cas de choc combiné (rendement et prix en baisse).")
+        if a["base_repayment_capacity_ratio"] < 1:
+            lines.append("La récolte attendue ne couvre pas le remboursement, même en année normale.")
+    if decision.get("suggested_amount_fcfa"):
+        lines.append(f"Montant réduit proposé : environ {_fr(decision['suggested_amount_fcfa'], 0)} FCFA.")
+    if warnings:
+        lines.append(f"Points d'attention ({len(warnings)}) : voir la liste des avertissements.")
+    lines.append("Aucun message n'est envoyé sans l'approbation d'un agent nommé.")
+    return " ".join(lines)
+
+
+def _template_narrative(state, decision, warnings, lang: str | None = None) -> str:
+    if (lang or get_settings().advisory_language) == "fr":
+        return _template_narrative_fr(state, decision, warnings)
     a, c = state.get("assessment"), state["case"]
     lines = [f"Draft for officer review on case {c['case_id']} ({c['package']['name']}, {c['requested_amount_fcfa']:,.0f} FCFA).",
-             f"Recommendation: {decision['recommendation'].value}. {decision['rationale']}"]
+             f"Recommendation: {_rv(decision['recommendation'])}. {decision['rationale']}"]
     if a:
         lines.append(f"Probability of default {a['probability_of_default']:.3f}; repayment capacity "
                      f"{a['base_repayment_capacity_ratio']:.2f}x base and {a['stress_repayment_capacity_ratio']:.2f}x under the combined shock.")
@@ -439,7 +493,9 @@ async def draft_advisory(state: AgentState) -> dict:
     prompt = (
         "KEY FINDINGS (computed by the system; your text must agree with every one of them):\n- "
         + "\n- ".join(findings["statements"] or ["none"]) + "\n\n"
-        "Write the explanation section of a DRAFT credit advisory for the extension officer, in plain English, "
+        + ("LANGUAGE: write the whole explanation in French, as used by extension services in Benin. Keep evidence IDs "
+           "unchanged and write numbers exactly as they appear in FACTS.\n\n" if get_settings().advisory_language == "fr" else "")
+        + "Write the explanation section of a DRAFT credit advisory for the extension officer, in plain English, "
         "120-200 words. Explain why the recommendation follows from the evidence. Cite evidence IDs in square brackets, "
         "e.g. [repayment:LOAN-HH-00001-1]. Use ONLY figures that appear in FACTS; do not compute new ones. If the "
         "recommendation is only viable under optimistic assumptions, say so explicitly. State clearly that this is a draft "
@@ -466,13 +522,16 @@ async def draft_advisory(state: AgentState) -> dict:
                            node="draft_advisory", stub_response=template).strip()
             claims = unsupported_claims(out, findings) if out else []
         bad = llm.unsupported_numbers(out, facts)
+        # A rejected draft is about the model's writing, not the household: it is shown in the explanation's
+        # author line and the activity log, and does not become an officer action or lower confidence.
+        model = get_settings().model_version
         if claims:
-            warnings.append(f"LLM narrative discarded: it contradicted the evidence ({'; '.join(claims)})")
+            author = f"template (no LLM); the {model} draft was rejected because it {'; '.join(claims)}"
             msgs.append(act("draft_advisory", "LLM narrative still contradicted the evidence: template used"))
         elif not out:
             msgs.append(act("draft_advisory", "LLM returned empty text: template used"))
         elif bad:
-            warnings.append(f"LLM narrative discarded: it contained figures not present in the evidence ({bad[:4]})")
+            author = f"template (no LLM); the {model} draft was rejected for figures not in the evidence ({bad[:4]})"
             msgs.append(act("draft_advisory", f"LLM narrative rejected for unsupported figures {bad[:4]}: template used"))
         else:
             narrative, author = out, get_settings().model_version
@@ -494,10 +553,44 @@ async def draft_advisory(state: AgentState) -> dict:
               details={"recommendation": adv["recommendation"], "recommendation_hash": adv["recommendation_hash"],
                        "evidence_items": len(adv["evidence"]), "narrative_author": author})
     return {"advisory": adv, "decision": _jsonable(decision), "status": "AWAITING_APPROVAL", "llm_used": used,
+            "narrative_language": "fr" if get_settings().advisory_language == "fr" else "en",
             "warnings": warnings,
             "activity": msgs + [act("draft_advisory", f"Draft stored: {adv['recommendation']} "
                                                       f"(hash {adv['recommendation_hash'][:12]}...), {len(adv['evidence'])} cited evidence items. "
                                                       "Waiting for a named officer.", tool="agricredit.draft_credit_advisory")]}
+
+
+LANG_NAME = {"en": "English", "fr": "French"}
+
+
+def translate_explanation(state: dict, target: str) -> tuple[str, str]:
+    """Reading translation of a drafted explanation (English <-> French) for the officer. The approved record keeps
+    the original. Model-written text is translated by the same open-weight model and passes the same number and
+    claim checks; template text is simply re-rendered in the other language."""
+    adv = state["advisory"]
+    src = state.get("narrative_language", "en")
+    if target == src:
+        return adv["narrative"], adv["narrative_author"]
+    template = _template_narrative(state, state["decision"], adv["data_quality_warnings"], lang=target)
+    if adv["narrative_author"].startswith("template") or not get_settings().is_open_weight_backend:
+        return template, f"template (no LLM), {LANG_NAME[target]}"
+    prompt = (f"Translate this draft credit-advisory explanation from {LANG_NAME[src]} into {LANG_NAME[target]}. "
+              "Keep every number exactly as written and every evidence ID in square brackets unchanged. Add nothing and "
+              f"remove nothing. Return only the translation.\n\n{adv['narrative']}")
+    try:
+        out = llm.chat([{"role": "system", "content": llm.SYSTEM}, {"role": "user", "content": prompt}], purpose="translate",
+                       json_mode=False, run_id=state["run_id"], case_id=state["case_id"], node="translate",
+                       stub_response=template).strip()
+    except llm.LLMUnavailable:
+        return template, f"template (model unavailable for translation), {LANG_NAME[target]}"
+    source_numbers = llm._numbers_in(adv["narrative"])
+    # A translation must carry the original's numbers and no others (small ones included: capacities are small).
+    bad = [n for n in llm._numbers_in(out) if not any(abs(n - a) <= max(0.011, 0.005 * abs(a)) for a in source_numbers)]
+    claims = unsupported_claims(out, key_findings(state)) if out else ["empty translation"]
+    if not out or bad or claims:
+        why = "; ".join(claims) if claims else f"figures not in the original {bad[:3]}"
+        return template, f"template; the translation was rejected ({why})"
+    return out, f"{get_settings().model_version}, translated from {LANG_NAME[src]}"
 
 
 def _jsonable(d: dict) -> dict:

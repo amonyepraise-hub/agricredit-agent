@@ -250,6 +250,22 @@ def get_market_signal(req: MarketRequest) -> MarketSignal:
     stale = age > _market_fresh()
     latest_price = None if conflicting else float(rows[-1]["price_fcfa_per_kg"])
 
+    # Seasonality: compare with the same calendar month in earlier years (needs a multi-year monthly history).
+    with db.read_conn() as c:
+        history = [dict(r) for r in c.execute(
+            "SELECT price_fcfa_per_kg, observation_timestamp FROM market_prices WHERE commodity = ? AND market_centre = ? "
+            "AND observation_timestamp < ?", (req.commodity, req.market_centre, f"{latest_ts.year:04d}-01-01"))]
+    by_month: dict[int, list[float]] = {}
+    years = set()
+    for h_ in history:
+        t_ = _ts(h_["observation_timestamp"])
+        by_month.setdefault(t_.month, []).append(h_["price_fcfa_per_kg"])
+        years.add(t_.year)
+    monthly = {str(m_): round(float(statistics.median(v)), 2) for m_, v in sorted(by_month.items()) if len(v) >= 2}
+    seasonal = monthly.get(str(latest_ts.month))
+    seasonal_anom = None if (seasonal is None or latest_price is None) else round((latest_price / seasonal - 1) * 100, 2)
+    seasonal_years = f"{min(years)}-{max(years)}" if years else None
+
     ev = []
     for r in latest_day:
         ev.append(_ev(f"market:{r['price_id']}", f"{req.commodity} price, {req.market_centre}", "market_price_observation",
@@ -260,6 +276,14 @@ def get_market_signal(req: MarketRequest) -> MarketSignal:
                   "derived_metric", f"{rows[0]['price_id']}..{rows[-1]['price_id']}", "market_prices",
                   f"{req.commodity}/{req.market_centre}", f"{median:.2f} FCFA/kg; volatility {vol:.4f}",
                   EvidenceKind.DERIVED, latest_ts, transformation=f"median and std of weekly log-returns over {req.start_date}..{req.end_date}"))
+    if seasonal is not None:
+        ev.append(_ev(f"market_seasonal:{req.commodity}:{req.market_centre}:{latest_ts:%m}",
+                      f"{req.commodity} price vs the usual {latest_ts:%B} price", "derived_metric",
+                      f"{req.commodity}/{req.market_centre}/{latest_ts:%m}", "market_prices", f"{req.commodity}/{req.market_centre}",
+                      f"{latest_price} FCFA/kg vs {seasonal:.2f} FCFA/kg median for {latest_ts:%B} {seasonal_years} "
+                      f"({seasonal_anom:+.1f}%)" if seasonal_anom is not None else f"{seasonal:.2f} FCFA/kg median for {latest_ts:%B} {seasonal_years}",
+                      EvidenceKind.DERIVED, latest_ts,
+                      transformation=f"median of {latest_ts:%B} prices in {seasonal_years}, same market and commodity"))
 
     return MarketSignal(
         commodity=req.commodity, market_centre=req.market_centre, latest_price_fcfa_per_kg=latest_price,
@@ -269,7 +293,8 @@ def get_market_signal(req: MarketRequest) -> MarketSignal:
         source_dataset=rows[-1]["source_dataset"], age_days=age, is_stale=stale, is_conflicting=conflicting,
         conflicting_observations=[{"price_id": r["price_id"], "price": r["price_fcfa_per_kg"], "source": r["source_dataset"]}
                                   for r in latest_day] if conflicting else [],
-        n_observations=len(rows), evidence=ev,
+        n_observations=len(rows), seasonal_median_fcfa_per_kg=seasonal, seasonal_anomaly_pct=seasonal_anom,
+        seasonal_years=seasonal_years, monthly_median_fcfa_per_kg=monthly, evidence=ev,
     )
 
 

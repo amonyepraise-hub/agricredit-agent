@@ -77,10 +77,16 @@ def test_parse_wfp_prices_keeps_one_variety_per_market_in_fcfa_per_kg():
     rows, markets = prices.parse_prices(WFP_CSV.encode(), dt.date(2021, 1, 1), "https://example.org/wfp.csv")
     maize = [r for r in rows if r["crop"] == "maize"]
     assert [r["price_fcfa_per_kg"] for r in maize] == [210.0, 190.0]  # white maize retail only, yellow + wholesale dropped
-    rice = [r for r in rows if r["crop"] == "rice"]
-    assert len(rice) == 1 and rice[0]["price_fcfa_per_kg"] == 500.0  # 25,000 per 50 kg; the 2016 row is too old
-    assert {m["market_centre"] for m in markets} == {"Bohicon-Market", "Parakou-Market"}
+    assert not [r for r in rows if r["crop"] == "rice"]  # only imported rice: not what a farmer sells
+    assert {m["market_centre"] for m in markets} == {"Bohicon-Market"}
     assert all(r["source_url"] == "https://example.org/wfp.csv" for r in rows)
+
+
+def test_rice_uses_paddy_or_local_never_imported():
+    from collections import Counter
+    assert prices.farmer_variety("rice", Counter({"Rice (imported)": 50, "Rice (paddy)": 5})) == "Rice (paddy)"
+    assert prices.farmer_variety("rice", Counter({"Rice (imported)": 50, "Rice (local)": 3})) == "Rice (local)"
+    assert prices.farmer_variety("rice", Counter({"Rice (imported)": 50})) is None
 
 
 def test_find_hdx_csv_url_skips_quickcharts_file():
@@ -156,7 +162,7 @@ def real_store(tmp_path_factory):
     for mk, la, lo in (("Bohicon", 7.18, 2.07), ("Parakou", 9.35, 2.62), ("Malanville", 11.67, 3.27)):
         for k, month in enumerate(range(1, 10)):
             lines.append(f"2026-{month:02d}-15,A,B,{mk},1,{la},{lo},c,Maize (white),2,KG,actual,Retail,XOF,{200 + 5 * k},0.3")
-            lines.append(f"2026-{month:02d}-15,A,B,{mk},1,{la},{lo},c,Rice (imported),5,KG,actual,Retail,XOF,{450 + 3 * k},0.7")
+            lines.append(f"2026-{month:02d}-15,A,B,{mk},1,{la},{lo},c,Rice (paddy),5,KG,actual,Retail,XOF,{230 + 3 * k},0.4")
     rows, markets = prices.parse_prices("\n".join(lines).encode(), dt.date(2021, 1, 1), "https://data.humdata.org/x.csv")
     write_csv(proc / "market_prices.csv", rows)
     write_csv(proc / "markets.csv", markets)

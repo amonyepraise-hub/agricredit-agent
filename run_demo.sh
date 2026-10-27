@@ -6,6 +6,7 @@
 #   ./run_demo.sh --real     same, but on REAL open data (NASA POWER, ERA5, WFP, HarvestStat/DSA). The first run
 #                            downloads the data (needs internet, about 20 to 30 minutes); later runs work offline.
 #   ./run_demo.sh --real --refresh-data   download the open data again
+#   ./run_demo.sh --real --evals          evaluate every real-data case and write EVALS_REAL.md
 #
 # Needs: Python >= 3.11 and Node.js >= 20 (for the official MCP filesystem server). Nothing else.
 # Uses AGRICREDIT_LLM_BACKEND from .env (copied from .env.example on first run). The default is
@@ -17,13 +18,14 @@ cd "$(dirname "$0")"
 say() { printf '\n\033[1;32m==> %s\033[0m\n' "$*"; }
 die() { printf '\n\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 
-REAL=0; CLI=0; REFRESH=0
+REAL=0; CLI=0; REFRESH=0; EVALS=0
 for arg in "$@"; do
   case "$arg" in
     --real) REAL=1 ;;
     --cli) CLI=1 ;;
     --refresh-data) REFRESH=1 ;;
-    *) die "unknown option $arg (use --cli, --real, --refresh-data)" ;;
+    --evals) EVALS=1 ;;
+    *) die "unknown option $arg (use --cli, --real, --refresh-data, --evals)" ;;
   esac
 done
 
@@ -88,6 +90,7 @@ if [ "$REAL" = 1 ]; then
   export AGRICREDIT_MARKET_FRESHNESS_DAYS=90   # WFP prices are monthly and published with a lag
   export AGRICREDIT_WEATHER_FRESHNESS_DAYS=14  # satellite rainfall arrives a few days late
   export AGRICREDIT_TARGET_DEFAULT_RATE=0.094  # BCEAO: Benin microfinance portfolio degradation rate, Dec 2024
+  export AGRICREDIT_UPLIFT_REALISATION=1.0     # real packages carry a sourced yield gain (see opendata/sources.py)
   AGRICREDIT_AS_OF=$(.venv/bin/python -c "import json; print(json.load(open('$SNAP'))['as_of'])")
   export AGRICREDIT_AS_OF
   if [ ! -f data/risk_model_real.joblib ] || [ data/agricredit_real.db -nt data/risk_model_real.joblib ]; then
@@ -95,6 +98,11 @@ if [ "$REAL" = 1 ]; then
     .venv/bin/python -m agricredit.risk.train >/dev/null
   fi
   say "REAL open data as of $AGRICREDIT_AS_OF (households are simulated inside real communes; see data/real/SOURCES.md)"
+fi
+
+if [ "$EVALS" = 1 ] && [ "$REAL" = 1 ]; then
+  say "Evaluating every real-data case (writes EVALS_REAL.md)"
+  exec .venv/bin/python evals/run_real_evals.py
 fi
 
 if [ "$CLI" = 1 ] && [ "$REAL" = 1 ]; then

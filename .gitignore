@@ -17,3 +17,5 @@ fs_mcp_root/audit_exports/*.json
 data/real/cache/
 data/agricredit_real.db
 data/risk_model_real.joblib
+data/real/ehcvm/
+evals/.work_real/

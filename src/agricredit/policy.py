@@ -59,11 +59,25 @@ def _decide(assessment: dict | None, blocking_gaps: list[str], warnings: list[st
                     "Do not offer this credit. Discuss non-credit support (extension visit, savings group) with the household.", conf)
     if base < 1.0 or comb < d["min_combined_capacity_for_recommend"]:
         optimistic = base >= 1.0
+        t = a.get("repayment_timing")
+        deferred_ok = bool(d.get("allow_deferred_repayment") and t
+                           and t["base_capacity_deferred"] >= d["min_base_capacity_for_recommend"]
+                           and t["combined_capacity_deferred"] >= d["min_combined_capacity_for_recommend"])
+        later = (f" If repayment were due in {t['best_month']} ({t['months_later']} months later), when prices have usually "
+                 f"been {t['typical_price_ratio']:.2f} times today's, capacity would be {t['base_capacity_deferred']:.2f}x base and "
+                 f"{t['combined_capacity_deferred']:.2f}x under the combined shock.") if deferred_ok else ""
         if reducible:
             return _out(R.REDUCE_CREDIT_AMOUNT, max_ok, optimistic,
                         f"At {requested_amount:,.0f} FCFA, repayment capacity is {base:.2f}x base and {comb:.2f}x under the combined "
-                        f"shock. A scaled package of about {max_ok:,.0f} FCFA keeps combined-shock capacity at or above 1.0x.",
-                        f"Discuss a reduced package of about {max_ok:,.0f} FCFA with the household before any approval.", conf)
+                        f"shock. A scaled package of about {max_ok:,.0f} FCFA keeps combined-shock capacity at or above 1.0x." + later,
+                        f"Discuss a reduced package of about {max_ok:,.0f} FCFA with the household before any approval."
+                        + (f" Alternative: keep the full package with repayment scheduled for {t['best_month']}." if deferred_ok else ""),
+                        conf)
+        if deferred_ok:
+            return _out(R.RECOMMEND_WITH_CONDITIONS, None, True,
+                        f"Repaid at today's price, capacity is {base:.2f}x base and {comb:.2f}x under the combined shock." + later,
+                        f"Approve only with repayment scheduled for {t['best_month']} and safe storage of the harvest (for example "
+                        "through warrantage / inventory credit). This relies on the usual seasonal price recovery.", conf - 0.1)
         if optimistic and base >= d["min_base_capacity_for_recommend"] and pd_ < d["pd_no_recommendation_min"]:
             return _out(R.RECOMMEND_WITH_CONDITIONS, None, True,
                         f"Repayment capacity is {base:.2f}x in the base case but only {comb:.2f}x under the combined shock: the "
