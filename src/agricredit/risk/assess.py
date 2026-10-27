@@ -136,6 +136,16 @@ def assess(case_id: str, case: HouseholdCase, crop: str, package: dict, terms: C
                      retrieval_timestamp=AS_OF, value=f"{package['name']}: {package['cost_fcfa']:,.0f} FCFA",
                      kind=EvidenceKind.OBSERVED),
     ]
+    be_base, be_stress = break_even_prices(case, crop, package, terms, weather, s)
+    ev.append(EvidenceItem(
+        evidence_id=f"derived:{vid}:break_even_price", label=f"Break-even {crop} price for this loan",
+        source_type="derived_metric", source_id=f"{vid}:break_even_price",
+        source_uri=f"computed://assess_serviceability/{vid}/break_even_price", retrieval_timestamp=AS_OF,
+        value=(f"{be_base:,.0f} FCFA/kg for 1.0x in a normal season" if be_base else "not reachable below 2,000 FCFA/kg")
+              + (f"; {be_stress:,.0f} FCFA/kg to stay at 1.0x after a {s.yield_shock_pct:.0%} yield loss and a "
+                 f"{s.price_shock_pct:.0%} price fall" if be_stress else ""),
+        kind=EvidenceKind.DERIVED,
+        transformation="price solving repayment capacity = 1.0 with every other input unchanged (bisection)"))
     timing = repayment_timing(case, crop, package, terms, weather, market, s)
     assumptions = A.describe(crop)
     if timing:
@@ -168,7 +178,8 @@ def assess(case_id: str, case: HouseholdCase, crop: str, package: dict, terms: C
         risk_band=RiskBand(fin.risk_band_from_pd(pd_)),
         feature_values={k: round(v, 4) for k, v in feats.items()},
         feature_contributions={k: round(v, 4) for k, v in contrib.items()},
-        assumptions=assumptions, risk_model_version=risk_model.version, assessed_at=AS_OF, repayment_timing=timing, evidence=ev,
+        assumptions=assumptions, risk_model_version=risk_model.version, assessed_at=AS_OF, repayment_timing=timing,
+        break_even_price_fcfa_per_kg=be_base, stress_break_even_price_fcfa_per_kg=be_stress, evidence=ev,
     ))
 
 
@@ -206,3 +217,22 @@ def repayment_timing(case: HouseholdCase, crop: str, package: dict, terms: Credi
             "base_capacity_deferred": st[0]["repayment_capacity_ratio"],
             "combined_capacity_deferred": st[3]["repayment_capacity_ratio"],
             "basis": f"median monthly prices at {market.market_centre}, {market.seasonal_years}"}
+
+
+def break_even_prices(case: HouseholdCase, crop: str, package: dict, terms: CreditTerms, weather: WeatherSignal,
+                      s, ceiling: float = 2000.0) -> tuple[float | None, float | None]:
+    """Crop price (FCFA/kg) at which repayment capacity is exactly 1.0x: in the base case, and in the combined-shock
+    case (so the price before the stress test's price fall). None if not reachable below `ceiling`."""
+    def capacity(price: float, scenario: int) -> float:
+        inp, _, _ = financial_inputs(case, crop, package, terms, weather, price)
+        return fin.run_all_stress_cases(inp, s.yield_shock_pct, s.price_shock_pct)[scenario]["repayment_capacity_ratio"]
+
+    def solve(scenario: int) -> float | None:
+        lo, hi = 1.0, ceiling
+        if capacity(hi, scenario) < 1.0:
+            return None
+        for _ in range(40):
+            mid = (lo + hi) / 2
+            lo, hi = (mid, hi) if capacity(mid, scenario) < 1.0 else (lo, mid)
+        return round(hi, 0)
+    return solve(0), solve(3)

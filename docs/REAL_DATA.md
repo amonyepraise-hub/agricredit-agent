@@ -57,6 +57,8 @@ Running on real data exposed four things the synthetic data never could, and eac
 3. **Repayment at harvest means selling at the bottom.** When a multi-year monthly history exists, the agent also computes capacity if repayment moves to the month (up to four months later) when prices have usually been highest, net of 5% storage loss and the extra interest. If that makes the loan serviceable, the policy can recommend it with a condition: repayment scheduled for that month, with safe storage (for example warrantage). It is marked as relying on the usual seasonal recovery.
 4. **Small models draw wrong conclusions from right numbers.** A real qwen2.5:1.5b draft said "suggesting a drought" at -19.1% (the drought line is -20%) and that a disagreeing cross-check "confirms" it. The agent now computes key findings itself, gives them to the model, checks the text against them (in English and French), asks for one correction, and otherwise uses its template.
 
+5. **"No" needs a number.** With real farm sizes and the September 2026 price fall, most loans fail the stress test. Every assessment now reports the **break-even crop price**: the price at which the loan would cover repayment in a normal season, and the price needed to survive the stress test. A refusal then says, for example, "reconsider if prices recover to about 175 FCFA/kg".
+
 It also fixed two of our own assumptions: packages are never larger than the plot, and real packages credit a +30% yield gain from on-farm trials in Benin instead of a hypothetical figure. Rice revenue uses paddy or local rice prices, never imported rice.
 
 ## French advisories

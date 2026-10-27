@@ -86,10 +86,14 @@ def _decide(assessment: dict | None, blocking_gaps: list[str], warnings: list[st
                         "credit is viable only under optimistic assumptions and no smaller package restores stress viability.",
                         "Approve only with explicit acknowledgement of stress-case shortfall and a contingency (crop insurance, "
                         "repayment rescheduling clause, or group guarantee).", conf - 0.1)
+        be = a.get("stress_break_even_price_fcfa_per_kg")
         return _out(R.NO_RECOMMENDATION, None, optimistic,
                     f"Repayment capacity is {base:.2f}x base and {comb:.2f}x under the combined shock, and no package of at least "
-                    f"{d['min_reduced_offer_fcfa']:,.0f} FCFA is serviceable under stress.",
-                    "Do not offer this credit at any tested size.", conf)
+                    f"{d['min_reduced_offer_fcfa']:,.0f} FCFA is serviceable under stress."
+                    + (f" The loan would pass the stress test if the crop sold for about {be:,.0f} FCFA/kg or more." if be else ""),
+                    "Do not offer this credit at any tested size." + (
+                        f" Reconsider if prices recover to about {be:,.0f} FCFA/kg, or offer non-credit support." if be else ""),
+                    conf)
     clean = (pd_ < d["pd_recommend_max"] and base >= d["min_base_capacity_for_recommend"] and not warnings)
     if clean:
         return _out(R.RECOMMEND, None, False,
