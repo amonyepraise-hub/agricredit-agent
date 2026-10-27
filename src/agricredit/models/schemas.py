@@ -269,6 +269,9 @@ class AssessmentResult(Strict):
     assessed_at: dt.datetime
     # Repayment timing (real-open-data mode): capacity if repayment is moved to the month when prices usually recover
     repayment_timing: Optional[dict] = None
+    # Crop price at which repayment capacity reaches 1.0x, in the base case and under the yield shock (+ price shock)
+    break_even_price_fcfa_per_kg: Optional[float] = None
+    stress_break_even_price_fcfa_per_kg: Optional[float] = None
     evidence: list[EvidenceItem]
     integrity: Optional[str] = None
 
