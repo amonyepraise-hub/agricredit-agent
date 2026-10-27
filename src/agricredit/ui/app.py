@@ -82,6 +82,9 @@ with st.sidebar:
     case_id = st.selectbox("1 · Select a case", list(labels), format_func=lambda k: labels[k],
                            index=list(labels).index("BEN-0421") if "BEN-0421" in labels else 0)
     st.caption(f"Scenario: {tags[case_id]}")
+    lang = st.radio("Explanation language", ["English", "Français"], horizontal=True,
+                    index=1 if s.advisory_language == "fr" else 0,
+                    help="Language of the model-written explanation. Figures and the recommendation do not change.")
     st.markdown("**Deliberate data problem (demo)**")
     outage = st.checkbox("Simulate rainfall-service outage for this case's zone",
                          help="Sets AGRICREDIT_FAULTS=weather_unavailable:<zone> for this run only.")
@@ -94,6 +97,7 @@ with st.sidebar:
             except Exception:
                 zone = None
         os.environ["AGRICREDIT_FAULTS"] = f"weather_unavailable:{zone}" if zone else ""
+        os.environ["AGRICREDIT_ADVISORY_LANGUAGE"] = "fr" if lang == "Français" else "en"
         with st.spinner("Agent is gathering evidence through MCP tools..."):
             try:
                 state = runner.start(case_id)

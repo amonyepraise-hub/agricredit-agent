@@ -345,7 +345,16 @@ async def evidence_sufficiency(state: AgentState) -> dict:
 # deterministically, handed to the model as the only allowed conclusions, then checked in its text.
 # --------------------------------------------------------------------------
 
-_NEGATION = re.compile(r"\b(no|not|without|isn't|wasn't|does not|did not|below the .{0,20}threshold|short of|above the .{0,20}threshold)\b", re.I)
+_NEGATION = re.compile(r"\b(no|not|without|isn't|wasn't|does not|did not|below the .{0,20}threshold|short of|above the .{0,20}threshold"
+                       r"|pas|aucune?|sans|ni|n['’]|ne)\b", re.I)
+_DROUGHT = re.compile(r"drought|s[ée]cheresse", re.I)
+_CROSSCHECK = re.compile(r"cross.?check|contre.?v[ée]rification|v[ée]rification ind[ée]pendante|source ind[ée]pendante|seconde source", re.I)
+_CONFIRMS = re.compile(r"\b(confirm|support|corroborat|agree|concord|appui)", re.I)
+_CAN_REPAY = re.compile(r"(potential|able|capacity|sufficient|enough) to (re)?pay|can (re)?pay|will (re)?pay"
+                        r"|capable de rembourser|peut rembourser|pourra rembourser|en mesure de rembourser"
+                        r"|suffisante? pour rembourser|capacit[ée] (de|à) rembourser le pr[êe]t", re.I)
+_HH_YIELD = re.compile(r"(household|m[ée]nage)[^.]{0,80}\b(has|had|have|with|achieved|produces?|a|obtient|produit|avec)\b"
+                       r"[^.]{0,40}(yield|rendement)", re.I)
 
 
 def key_findings(state) -> dict:
@@ -386,32 +395,62 @@ def unsupported_claims(text: str, findings: dict) -> list[str]:
     sentences = re.split(r"(?<=[.!?])\s+|\n+", text)
     if findings.get("drought") is False:
         for s_ in sentences:
-            if re.search(r"drought", s_, re.I) and not _NEGATION.search(s_):
+            if _DROUGHT.search(s_) and not _NEGATION.search(s_):
                 problems.append("claims drought, but the drought indicator is off")
                 break
     if findings.get("sources_agree") is False:
         for s_ in sentences:
-            if re.search(r"cross.?check", s_, re.I) and re.search(r"\b(confirm|support|corroborat|agree)", s_, re.I) \
-                    and not _NEGATION.search(s_):
+            if _CROSSCHECK.search(s_) and _CONFIRMS.search(s_) and not _NEGATION.search(s_):
                 problems.append("says the rainfall cross-check confirms, but the sources disagree")
                 break
     if findings.get("can_repay") is False:
         for s_ in sentences:
-            if re.search(r"(potential|able|capacity|sufficient|enough) to (re)?pay|can (re)?pay|will (re)?pay", s_, re.I) \
-                    and not _NEGATION.search(s_):
+            if _CAN_REPAY.search(s_) and not _NEGATION.search(s_):
                 problems.append("suggests the household can repay, but base capacity is below 1.0x")
                 break
     if findings.get("commune_yields"):
         for s_ in sentences:
-            nums = {n.replace(",", "") for n in re.findall(r"\d[\d,]*", s_)}
-            if re.search(r"household[^.]{0,80}\b(has|had|have|with|achieved|produces?)\b[^.]{0,40}yield", s_, re.I) \
-                    and nums & findings["commune_yields"]:
+            nums = {str(int(n)) for n in llm._numbers_in(s_) if float(n).is_integer()}
+            if _HH_YIELD.search(s_) and nums & findings["commune_yields"]:
                 problems.append("presents the commune's official average yield as this household's own yield")
                 break
     return problems
 
 
+FR_RECOMMENDATION = {
+    "RECOMMEND": "RECOMMANDER", "RECOMMEND_WITH_CONDITIONS": "RECOMMANDER SOUS CONDITIONS",
+    "REDUCE_CREDIT_AMOUNT": "RÉDUIRE LE MONTANT DU CRÉDIT", "REQUEST_MORE_EVIDENCE": "DEMANDER DES PREUVES COMPLÉMENTAIRES",
+    "NO_RECOMMENDATION": "PAS DE RECOMMANDATION",
+}
+
+
+def _fr(x: float, nd: int = 2) -> str:
+    return f"{x:,.{nd}f}".replace(",", "\u202f").replace(".", ",")
+
+
+def _template_narrative_fr(state, decision, warnings) -> str:
+    a, c = state.get("assessment"), state["case"]
+    rec = decision["recommendation"].value
+    lines = [f"Projet d'avis soumis à la décision de l'agent pour le dossier {c['case_id']} "
+             f"({c['package']['name']}, {_fr(c['requested_amount_fcfa'], 0)} FCFA).",
+             f"Recommandation : {FR_RECOMMENDATION.get(rec, rec)}."]
+    if a:
+        lines.append(f"Probabilité de défaut {_fr(a['probability_of_default'], 3)} ; capacité de remboursement "
+                     f"{_fr(a['base_repayment_capacity_ratio'])} fois en situation normale et "
+                     f"{_fr(a['stress_repayment_capacity_ratio'])} fois en cas de choc combiné (rendement et prix en baisse).")
+        if a["base_repayment_capacity_ratio"] < 1:
+            lines.append("La récolte attendue ne couvre pas le remboursement, même en année normale.")
+    if decision.get("suggested_amount_fcfa"):
+        lines.append(f"Montant réduit proposé : environ {_fr(decision['suggested_amount_fcfa'], 0)} FCFA.")
+    if warnings:
+        lines.append(f"Points d'attention ({len(warnings)}) : voir la liste des avertissements.")
+    lines.append("Aucun message n'est envoyé sans l'approbation d'un agent nommé.")
+    return " ".join(lines)
+
+
 def _template_narrative(state, decision, warnings) -> str:
+    if get_settings().advisory_language == "fr":
+        return _template_narrative_fr(state, decision, warnings)
     a, c = state.get("assessment"), state["case"]
     lines = [f"Draft for officer review on case {c['case_id']} ({c['package']['name']}, {c['requested_amount_fcfa']:,.0f} FCFA).",
              f"Recommendation: {decision['recommendation'].value}. {decision['rationale']}"]
@@ -449,7 +488,9 @@ async def draft_advisory(state: AgentState) -> dict:
     prompt = (
         "KEY FINDINGS (computed by the system; your text must agree with every one of them):\n- "
         + "\n- ".join(findings["statements"] or ["none"]) + "\n\n"
-        "Write the explanation section of a DRAFT credit advisory for the extension officer, in plain English, "
+        + ("LANGUAGE: write the whole explanation in French, as used by extension services in Benin. Keep evidence IDs "
+           "unchanged and write numbers exactly as they appear in FACTS.\n\n" if get_settings().advisory_language == "fr" else "")
+        + "Write the explanation section of a DRAFT credit advisory for the extension officer, in plain English, "
         "120-200 words. Explain why the recommendation follows from the evidence. Cite evidence IDs in square brackets, "
         "e.g. [repayment:LOAN-HH-00001-1]. Use ONLY figures that appear in FACTS; do not compute new ones. If the "
         "recommendation is only viable under optimistic assumptions, say so explicitly. State clearly that this is a draft "

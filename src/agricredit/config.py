@@ -57,6 +57,8 @@ class Settings:
     log_dir: str = field(default_factory=lambda: _path("AGRICREDIT_LOG_DIR", REPO_ROOT / "logs"))
     risk_model_path: str = field(default_factory=lambda: _path("AGRICREDIT_RISK_MODEL_PATH", REPO_ROOT / "data" / "risk_model.joblib"))
     fs_mcp_root: str = field(default_factory=lambda: _path("AGRICREDIT_FS_MCP_ROOT", REPO_ROOT / "fs_mcp_root"))
+    # Language of the advisory explanation: "en" or "fr" (Benin's extension services work in French).
+    advisory_language: str = field(default_factory=lambda: os.getenv("AGRICREDIT_ADVISORY_LANGUAGE", "en").strip().lower()[:2])
     # Policy file name inside <fs_mcp_root>/policy/. The real-open-data mode uses agent_policy_real.json.
     policy_file: str = field(default_factory=lambda: os.getenv("AGRICREDIT_POLICY_FILE", "agent_policy.json"))
 
