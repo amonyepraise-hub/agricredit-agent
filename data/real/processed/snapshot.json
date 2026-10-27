@@ -1,0 +1,34 @@
+{
+  "as_of": "2026-10-26T22:00:00",
+  "current_season": "2026",
+  "sources": {
+    "harveststat_boundaries": {
+      "rows": 77,
+      "retrieved_at": "2026-10-26T22:00:00"
+    },
+    "harveststat_yields": {
+      "rows": 6386,
+      "latest_year": 2023,
+      "retrieved_at": "2026-10-26T22:00:00"
+    },
+    "wfp_hdx": {
+      "rows": 8401,
+      "markets": 50,
+      "latest_date": "2026-09-15",
+      "retrieved_at": "2026-10-26T22:00:00"
+    },
+    "era5_open_meteo": {
+      "rows": 308,
+      "grid_cells": 35,
+      "last_data_date": "2026-10-25",
+      "retrieved_at": "2026-10-26T22:00:00"
+    },
+    "nasa_power": {
+      "rows": 77,
+      "grid_cells": 31,
+      "retrieved_at": "2026-10-26T22:00:00"
+    }
+  },
+  "warnings": [],
+  "elapsed_s": 1489.2
+}
