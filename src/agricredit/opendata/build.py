@@ -12,6 +12,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import sqlite3
+import unicodedata
 from collections import defaultdict
 from pathlib import Path
 
@@ -19,6 +20,7 @@ import numpy as np
 
 from ..config import REPO_ROOT
 from .fetch import PROCESSED, read_csv
+from .ehcvm import sample_area
 from .geo import haversine_km
 from .sources import FERTILISER_PRICE_FCFA_PER_50KG as FERT, FULL_DOSE_YIELD_GAIN, MAIZE_DOSE_KG_PER_HA as DOSE, SOURCES, sources_markdown
 
@@ -62,6 +64,23 @@ def _pick_package(crop: str, area: float) -> tuple[str, float]:
     """The largest package that does not exceed the plot (never fertiliser for land the household does not farm)."""
     code, ha = ("HALF", 0.5) if area < 1.0 else (("1HA", 1.0) if area < 2.0 else ("2HA", 2.0))
     return f"PKG-{crop.upper()}-{code}", package_cost(ha)
+
+
+def _fold(x: str) -> str:
+    return unicodedata.normalize("NFKD", str(x)).encode("ascii", "ignore").decode().lower().strip()
+
+
+def load_farm_profile(processed: Path) -> dict:
+    """Department x crop aggregates from EHCVM 2021/22 (see opendata/ehcvm.py); empty if not built."""
+    rows = read_csv(processed / "ehcvm_farm_profile.csv")
+    return {(_fold(r["department"]), r["crop"]): r for r in rows}
+
+
+def _profile_row(profile: dict, department: str, crop: str) -> dict | None:
+    r = profile.get((_fold(department), crop)) or profile.get((_fold("Benin (national)"), crop))
+    if r is None:
+        return None
+    return {k: (float(v) if k.startswith("area_p") or k == "share_growing" else v) for k, v in r.items()}
 
 
 def load_extracts(processed: Path = PROCESSED) -> dict:
@@ -158,7 +177,8 @@ def build(seed: int = 42, households_per_commune: int = 5, db_path: Path = DB_PA
     ])
     cur.executemany("INSERT INTO officers VALUES (?,?,?,1)", OFFICERS)
 
-    # ---- households simulated inside real communes
+    # ---- households simulated inside real communes (crop mix and plot sizes from EHCVM when available)
+    farm_profile = load_farm_profile(processed)
     usable = [lid for lid in communes if lid in weather]
     hh_index = 10000
     by_commune = defaultdict(list)
@@ -174,8 +194,17 @@ def build(seed: int = 42, households_per_commune: int = 5, db_path: Path = DB_PA
             hh = f"HH-{hh_index:05d}"
             reliability = float(np.clip(rng.beta(5, 2), 0.02, 0.99))
             n_plots = min(len(crops_avail), int(rng.integers(1, 4)))
-            first = "maize" if "maize" in crops_avail and rng.random() < 0.7 else str(rng.choice(crops_avail, p=weights))
-            others = [x for x in rng.choice(crops_avail, size=len(crops_avail), replace=False, p=weights) if x != first]
+            w_used = weights
+            if farm_profile:  # real crop mix: share of farming households in this department growing each crop
+                shares = np.array([_profile_row(farm_profile, c["admin_1"], k)["share_growing"]
+                                   if _profile_row(farm_profile, c["admin_1"], k) else 0.0 for k in crops_avail], dtype=float)
+                if shares.sum() > 0:
+                    w_used = (shares + 1e-6) / (shares + 1e-6).sum()
+            if farm_profile:
+                first = str(rng.choice(crops_avail, p=w_used))
+            else:
+                first = "maize" if "maize" in crops_avail and rng.random() < 0.7 else str(rng.choice(crops_avail, p=weights))
+            others = [x for x in rng.choice(crops_avail, size=len(crops_avail), replace=False, p=w_used) if x != first]
             plot_crops = [first] + list(others)[: n_plots - 1]
             cur.execute("INSERT INTO households VALUES (?,?,1,?,?)",
                         (hh, lid, f"Simulated household in {c['name']} commune ({c['admin_1']}).",
@@ -183,7 +212,9 @@ def build(seed: int = 42, households_per_commune: int = 5, db_path: Path = DB_PA
             cur.execute("INSERT INTO synthetic_latent_traits VALUES (?,?)", (hh, reliability))
             for p_i, crop in enumerate(plot_crops):
                 plot_id = f"{hh}-P{p_i + 1}"
-                area = float(np.clip(rng.gamma(2.0, 0.9), 0.3, 6.0))
+                row = _profile_row(farm_profile, c["admin_1"], crop) if farm_profile else None
+                area = (float(np.clip(sample_area(row, rng), 0.1, 20.0)) if row       # real EHCVM size distribution
+                        else float(np.clip(rng.gamma(2.0, 0.9), 0.3, 6.0)))            # assumed distribution
                 cur.execute("INSERT INTO plots VALUES (?,?,?,?,?,?)", (plot_id, hh, crop, round(area, 2), None, lid))
                 years = sorted(yields[(c["fnid"], crop)])[-3:]
                 for yr in years:
@@ -301,6 +332,7 @@ def build(seed: int = 42, households_per_commune: int = 5, db_path: Path = DB_PA
     sources_md.write_text(sources_markdown())
 
     stats = {"db": str(db_path), "as_of": snap["as_of"], "communes_with_rainfall": len(usable),
+             "farm_sizes": "EHCVM 2021/22 (real, by department)" if farm_profile else "assumed distribution (EHCVM not loaded)",
              "households": hh_index - 10000, "cases": len(cases), "markets": len(markets),
              "showcase": [c[0] + ": " + c[9] for c in cases if not c[9].startswith("REAL data: routine")]}
     conn.close()

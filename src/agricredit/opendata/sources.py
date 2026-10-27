@@ -59,6 +59,11 @@ SOURCES: list[Source] = [
            "Amogou et al. 2021, INRAB / University of Abomey-Calavi (via FAO AGRIS)", "Scientific publication",
            "https://agris.fao.org/search/fr/records/675ab76d0e654e779babbd53",
            "Package composition per hectare", "Open abstract"),
+    Source("ehcvm", "Enquête Harmonisée sur les Conditions de Vie des Ménages (EHCVM) 2021/22, Benin",
+           "INSAE Benin, WAEMU Commission, World Bank", "Free account; raw files may not be redistributed",
+           "https://microdata.worldbank.org/catalog/6272",
+           "Department-level crop mix and farm-size distributions (weighted; cells under 20 households suppressed); "
+           "only these aggregates are kept in the repository", "Free registration"),
     Source("benin_trials", "On-farm maize trials in Benin (south, centre, north): yield gain from NPK + urea",
            "Frontiers in Sustainable Food Systems, 2021", "CC BY 4.0", "https://doi.org/10.3389/fsufs.2021.605610",
            "Yield gain credited to fertiliser packages (+30% for the full dose, a conservative figure)", "Open access"),
@@ -91,8 +96,8 @@ def sources_markdown() -> str:
               "repayments, and none should. Households are simulated *inside real communes*: each household's yields "
               "are drawn around that commune's official yields, and the default rate of the simulated loan outcomes is "
               "calibrated to BCEAO's 9.4% portfolio degradation rate for Benin's microfinance sector.",
-              "- **Plot sizes** use the same assumed distribution as the synthetic mode. The World Bank EHCVM 2021/22 "
-              "household survey (8,032 Benin households, free account required, no redistribution) is the next step "
-              "to replace this with real farm-size distributions.",
+              "- **Plot sizes and crop mixes** come from the World Bank / INSAE EHCVM 2021/22 survey (8,032 Benin "
+              "households) when `python -m agricredit.opendata ehcvm` has been run: each simulated household's crops and "
+              "plot sizes are drawn from its department's weighted distributions. Without it, an assumed distribution is used.",
               "- **Officers** are fictional.", ""]
     return "\n".join(lines)

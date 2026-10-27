@@ -2,6 +2,7 @@
 
   sources   print the open data sources and licences (no internet needed)
   fetch     download every source into data/real/ (needs internet)
+  ehcvm     summarise the EHCVM household survey files you downloaded (offline)
   build     build data/agricredit_real.db + the real-mode policy from the downloaded extracts (offline)
   all       fetch, then build
 """
@@ -17,6 +18,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(prog="python -m agricredit.opendata")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("sources")
+    sub.add_parser("ehcvm", help="summarise the EHCVM 2021/22 files in data/real/ehcvm/ into department aggregates")
     for name in ("fetch", "all"):
         f = sub.add_parser(name)
         f.add_argument("--refresh", action="store_true", help="ignore the download cache")
@@ -27,6 +29,10 @@ def main() -> None:
     if a.cmd == "sources":
         for s in SOURCES:
             print(f"- {s.name}\n    publisher: {s.publisher}\n    licence:   {s.licence}\n    feeds:     {s.feeds}\n    url:       {s.url}")
+        return
+    if a.cmd == "ehcvm":
+        from .ehcvm import build_profile
+        build_profile()
         return
     if a.cmd in ("fetch", "all"):
         from .fetch import fetch_all
