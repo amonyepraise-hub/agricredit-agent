@@ -220,6 +220,11 @@ class MarketSignal(Strict):
     is_conflicting: bool
     conflicting_observations: list[dict] = Field(default_factory=list)
     n_observations: int
+    # Seasonality (real-open-data mode; None when there is no multi-year history, e.g. the synthetic weekly feed)
+    seasonal_median_fcfa_per_kg: Optional[float] = None   # median price in the same calendar month of earlier years
+    seasonal_anomaly_pct: Optional[float] = None
+    seasonal_years: Optional[str] = None
+    monthly_median_fcfa_per_kg: dict[str, float] = Field(default_factory=dict)  # "1".."12" -> median of earlier years
     evidence: list[EvidenceItem]
 
 
@@ -262,6 +267,11 @@ class AssessmentResult(Strict):
     assumptions: list[str]
     risk_model_version: str
     assessed_at: dt.datetime
+    # Repayment timing (real-open-data mode): capacity if repayment is moved to the month when prices usually recover
+    repayment_timing: Optional[dict] = None
+    # Crop price at which repayment capacity reaches 1.0x, in the base case and under the yield shock (+ price shock)
+    break_even_price_fcfa_per_kg: Optional[float] = None
+    stress_break_even_price_fcfa_per_kg: Optional[float] = None
     evidence: list[EvidenceItem]
     integrity: Optional[str] = None
 

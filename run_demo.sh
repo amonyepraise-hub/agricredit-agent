@@ -3,6 +3,10 @@
 #
 #   ./run_demo.sh            set up (if needed), run tests, open the officer dashboard on http://localhost:8501
 #   ./run_demo.sh --cli      set up (if needed), run the scripted terminal demo instead of the dashboard
+#   ./run_demo.sh --real     same, but on REAL open data (NASA POWER, ERA5, WFP, HarvestStat/DSA). The first run
+#                            downloads the data (needs internet, about 20 to 30 minutes); later runs work offline.
+#   ./run_demo.sh --real --refresh-data   download the open data again
+#   ./run_demo.sh --real --evals          evaluate every real-data case and write EVALS_REAL.md
 #
 # Needs: Python >= 3.11 and Node.js >= 20 (for the official MCP filesystem server). Nothing else.
 # Uses AGRICREDIT_LLM_BACKEND from .env (copied from .env.example on first run). The default is
@@ -13,6 +17,17 @@ cd "$(dirname "$0")"
 
 say() { printf '\n\033[1;32m==> %s\033[0m\n' "$*"; }
 die() { printf '\n\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
+
+REAL=0; CLI=0; REFRESH=0; EVALS=0
+for arg in "$@"; do
+  case "$arg" in
+    --real) REAL=1 ;;
+    --cli) CLI=1 ;;
+    --refresh-data) REFRESH=1 ;;
+    --evals) EVALS=1 ;;
+    *) die "unknown option $arg (use --cli, --real, --refresh-data, --evals)" ;;
+  esac
+done
 
 PY=${PYTHON:-python3}
 command -v "$PY" >/dev/null || die "python3 not found (need >= 3.11)"
@@ -58,7 +73,46 @@ fi
 say "Running the test suite"
 .venv/bin/python -m pytest -q tests
 
-if [ "${1:-}" = "--cli" ]; then
+if [ "$REAL" = 1 ]; then
+  SNAP=data/real/processed/snapshot.json
+  if [ ! -f "$SNAP" ] || [ "$REFRESH" = 1 ]; then
+    say "Downloading REAL open data: HarvestStat/DSA yields, WFP prices, NASA POWER and ERA5 rainfall (needs internet)"
+    if [ "$REFRESH" = 1 ]; then .venv/bin/python -m agricredit.opendata fetch --refresh; else .venv/bin/python -m agricredit.opendata fetch; fi
+  fi
+  [ -f "$SNAP" ] || die "open data download did not finish; check your internet connection and run again"
+  if [ ! -f data/agricredit_real.db ] || [ "$SNAP" -nt data/agricredit_real.db ]; then
+    say "Building the real-open-data database (offline, seeded)"
+    .venv/bin/python -m agricredit.opendata build
+  fi
+  export AGRICREDIT_DB_PATH=data/agricredit_real.db
+  export AGRICREDIT_POLICY_FILE=agent_policy_real.json
+  export AGRICREDIT_RISK_MODEL_PATH=data/risk_model_real.joblib
+  export AGRICREDIT_MARKET_FRESHNESS_DAYS=90   # WFP prices are monthly and published with a lag
+  export AGRICREDIT_WEATHER_FRESHNESS_DAYS=14  # satellite rainfall arrives a few days late
+  export AGRICREDIT_TARGET_DEFAULT_RATE=0.094  # BCEAO: Benin microfinance portfolio degradation rate, Dec 2024
+  export AGRICREDIT_UPLIFT_REALISATION=1.0     # real packages carry a sourced yield gain (see opendata/sources.py)
+  AGRICREDIT_AS_OF=$(.venv/bin/python -c "import json; print(json.load(open('$SNAP'))['as_of'])")
+  export AGRICREDIT_AS_OF
+  if [ ! -f data/risk_model_real.joblib ] || [ data/agricredit_real.db -nt data/risk_model_real.joblib ]; then
+    say "Training the risk model on the real-open-data store (~20 s)"
+    .venv/bin/python -m agricredit.risk.train >/dev/null
+  fi
+  say "REAL open data as of $AGRICREDIT_AS_OF (households are simulated inside real communes; see data/real/SOURCES.md)"
+fi
+
+if [ "$EVALS" = 1 ] && [ "$REAL" = 1 ]; then
+  say "Evaluating every real-data case (writes EVALS_REAL.md)"
+  exec .venv/bin/python evals/run_real_evals.py
+fi
+
+if [ "$CLI" = 1 ] && [ "$REAL" = 1 ]; then
+  say "Real-data cases"
+  CASES=$(.venv/bin/python -m agricredit.cli cases)
+  printf '%s\n' "$CASES" | sed -n '1,8p'
+  FIRST=$(printf '%s\n' "$CASES" | sed -n '1p' | cut -d' ' -f1)
+  say "Running $FIRST with a named officer approval"
+  .venv/bin/python -m agricredit.cli run "$FIRST" --approve OFF-001
+elif [ "$CLI" = 1 ]; then
   say "Scripted terminal demo"
   .venv/bin/python -m agricredit.cli demo
 else

@@ -15,6 +15,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import math
+import os
 from pathlib import Path
 
 import joblib
@@ -49,16 +50,26 @@ def _ece(y, p, bins=10) -> float:
     return float(e)
 
 
+def target_default_rate() -> float | None:
+    """Real-open-data mode calibrates the simulated outcomes to an observed sector default rate
+    (AGRICREDIT_TARGET_DEFAULT_RATE, e.g. 0.094 = BCEAO's Benin microfinance portfolio degradation rate, Dec 2024)."""
+    raw = os.getenv("AGRICREDIT_TARGET_DEFAULT_RATE")
+    return float(raw) if raw else None
+
+
 def build_dataset(seed: int = 7):
     rng = np.random.default_rng(seed)
     s = get_settings()
+    season = str(services._now().year)
     with db.read_conn() as c:
         latent = {r["household_id"]: r["reliability"] for r in c.execute("SELECT * FROM synthetic_latent_traits")}
         packages = [dict(r) for r in c.execute("SELECT * FROM input_packages")]
+        centres = [r[0] for r in c.execute("SELECT DISTINCT market_centre FROM market_prices ORDER BY market_centre")]
+    centres = CENTRES if set(centres) == set(CENTRES) else centres
     end = services._now().date()
     start = end - dt.timedelta(weeks=26)
     market_cache, weather_cache = {}, {}
-    X, y = [], []
+    X, logits, draws = [], [], []
     for hh, rel in sorted(latent.items()):
         if hh in EXCLUDED:
             continue
@@ -70,14 +81,25 @@ def build_dataset(seed: int = 7):
                 continue  # applications on very small plots are screened out before credit review
             key = (case.location_id, crop)
             if key not in weather_cache:
-                weather_cache[key] = services.get_weather_signal(WeatherRequest(
-                    location_id=case.location_id, crop=crop, season="2026", start_date=end - dt.timedelta(days=120), end_date=end))
+                try:
+                    weather_cache[key] = services.get_weather_signal(WeatherRequest(
+                        location_id=case.location_id, crop=crop, season=season, start_date=end - dt.timedelta(days=180),
+                        end_date=end))
+                except services.NotFoundError:
+                    weather_cache[key] = None
+            if weather_cache[key] is None:
+                continue
             for _ in range(4):
-                centre = CENTRES[int(rng.integers(len(CENTRES)))]
+                centre = centres[int(rng.integers(len(centres)))]
                 if (crop, centre) not in market_cache:
-                    market_cache[(crop, centre)] = services.get_market_signal(MarketRequest(
-                        commodity=crop, market_centre=centre, start_date=start, end_date=end))
+                    try:
+                        market_cache[(crop, centre)] = services.get_market_signal(MarketRequest(
+                            commodity=crop, market_centre=centre, start_date=start, end_date=end))
+                    except services.NotFoundError:
+                        market_cache[(crop, centre)] = None
                 weather, market = weather_cache[key], market_cache[(crop, centre)]
+                if market is None:
+                    continue
                 if market.latest_price_fcfa_per_kg is None:
                     continue  # conflicting feeds: no usable price, same as at inference time
                 price = market.latest_price_fcfa_per_kg
@@ -89,10 +111,22 @@ def build_dataset(seed: int = 7):
                 stress = fin.run_all_stress_cases(inp, s.yield_shock_pct, s.price_shock_pct)
                 f = build_features(case, crop, inp, stress, weather, market)
                 bc, cc = stress[0]["repayment_capacity_ratio"], stress[3]["repayment_capacity_ratio"]
-                logit = (-2.6 + 4.5 * (0.75 - rel) + 1.3 * (bc < 1) + 0.6 * (cc < 1)
+                logit = (4.5 * (0.75 - rel) + 1.3 * (bc < 1) + 0.6 * (cc < 1)
                          + 0.7 * weather.drought_indicator - 0.4 * min(max(bc - 1, 0), 2))
                 X.append([f[k] for k in FEATURES])
-                y.append(int(rng.random() < 1 / (1 + math.exp(-logit))))
+                logits.append(logit)
+                draws.append(rng.random())
+    intercept = -2.6
+    target = target_default_rate()
+    if target is not None and logits:
+        lo, hi = -15.0, 10.0  # bisection: choose the intercept whose mean simulated PD equals the target rate
+        for _ in range(60):
+            mid = (lo + hi) / 2
+            mean_pd = float(np.mean([1 / (1 + math.exp(-(mid + v))) for v in logits]))
+            lo, hi = (mid, hi) if mean_pd < target else (lo, mid)
+        intercept = (lo + hi) / 2
+    y = [int(u < 1 / (1 + math.exp(-(intercept + v)))) for u, v in zip(draws, logits)]
+    build_dataset.intercept = intercept
     return np.array(X, dtype=float), np.array(y)
 
 
@@ -146,7 +180,17 @@ def main() -> None:
                         "Metrics measure recovery of a known synthetic process, NOT real-world predictive performance.",
         "excluded_households": sorted(EXCLUDED),
     }
-    (REPO_ROOT / "data" / "model_card.json").write_text(json.dumps(card, indent=2))
+    if target_default_rate() is not None:
+        card["label_source"] = (f"SIMULATED outcomes for households simulated inside real communes, with the intercept "
+                                f"calibrated so the mean default rate matches {target_default_rate():.1%} (BCEAO, Benin "
+                                f"microfinance portfolio degradation rate, Dec 2024). Weather, prices and commune yields "
+                                f"behind the features are real open data. Metrics measure recovery of the simulated "
+                                f"process, NOT real-world predictive performance.")
+        card["calibrated_intercept"] = round(build_dataset.intercept, 4)
+    model_path = Path(get_settings().risk_model_path)
+    card_path = model_path.parent / ("model_card.json" if model_path.name == "risk_model.joblib"
+                                     else model_path.stem + "_card.json")
+    card_path.write_text(json.dumps(card, indent=2))
     print(json.dumps({k: card[k] for k in ["production_choice", "selection_rule_satisfied_by_lr", "cv_metrics",
                                             "n_samples", "default_rate"]}, indent=2))
 

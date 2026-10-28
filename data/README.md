@@ -20,7 +20,7 @@ The weather and market series are **synthetic benchmarks shaped like** CHIRPS de
 
 ## What is public
 
-**No public observations are included in this version.** CHIRPS, HDX/WFP, FAO and World Bank hosts were all unreachable from the build environment, so nothing could be fetched, cached and verified. We did not want to paste remembered figures and label them as observations. The schema, provenance fields and freshness logic are built so a cached public extract can replace the synthetic weather and market tables without changing the agent. Writing and validating that adapter is future work.
+**In the default (synthetic) store: nothing.** The real-open-data mode (`./run_demo.sh --real`, code in `src/agricredit/opendata/`) builds a second store, `agricredit_real.db`, from public sources: official commune yields (DSA via HarvestStat Africa), daily rainfall (NASA POWER, cross-checked against ERA5 via Open-Meteo), WFP market prices (HDX), subsidised fertiliser prices and doses, and BCEAO's microfinance default rate. Extracts live in `data/real/processed/`; sources, licences and what is still simulated are in [`real/SOURCES.md`](real/SOURCES.md) and [`../docs/REAL_DATA.md`](../docs/REAL_DATA.md).
 
 ## What is derived
 

@@ -136,6 +136,33 @@ def assess(case_id: str, case: HouseholdCase, crop: str, package: dict, terms: C
                      retrieval_timestamp=AS_OF, value=f"{package['name']}: {package['cost_fcfa']:,.0f} FCFA",
                      kind=EvidenceKind.OBSERVED),
     ]
+    be_base, be_stress = break_even_prices(case, crop, package, terms, weather, s)
+    ev.append(EvidenceItem(
+        evidence_id=f"derived:{vid}:break_even_price", label=f"Break-even {crop} price for this loan",
+        source_type="derived_metric", source_id=f"{vid}:break_even_price",
+        source_uri=f"computed://assess_serviceability/{vid}/break_even_price", retrieval_timestamp=AS_OF,
+        value=(f"{be_base:,.0f} FCFA/kg for 1.0x in a normal season" if be_base else "not reachable below 2,000 FCFA/kg")
+              + (f"; {be_stress:,.0f} FCFA/kg to stay at 1.0x after a {s.yield_shock_pct:.0%} yield loss and a "
+                 f"{s.price_shock_pct:.0%} price fall" if be_stress else ""),
+        kind=EvidenceKind.DERIVED,
+        transformation="price solving repayment capacity = 1.0 with every other input unchanged (bisection)"))
+    timing = repayment_timing(case, crop, package, terms, weather, market, s)
+    assumptions = A.describe(crop)
+    if timing:
+        ev.append(EvidenceItem(
+            evidence_id=f"derived:{vid}:repayment_timing", label="Repayment timing: sell later when prices usually recover",
+            source_type="derived_metric", source_id=f"{vid}:repayment_timing",
+            source_uri=f"computed://assess_serviceability/{vid}/repayment_timing", retrieval_timestamp=AS_OF,
+            value=(f"selling in {timing['best_month']} ({timing['months_later']} months later): expected "
+                   f"{timing['expected_price_deferred']} FCFA/kg; capacity {timing['base_capacity_deferred']:.2f}x base / "
+                   f"{timing['combined_capacity_deferred']:.2f}x combined shock"),
+            kind=EvidenceKind.DERIVED,
+            transformation=(f"today's price x typical {timing['best_month']}/{timing['price_month']} price ratio "
+                            f"{timing['typical_price_ratio']} ({timing['basis']}) x (1 - {A.STORAGE_LOSS_PCT:.0%} storage loss); "
+                            f"tenor extended by {timing['months_later']} months")))
+        assumptions = assumptions + [
+            f"Repayment-timing scenario: prices follow their usual seasonal pattern ({timing['basis']}); stored grain "
+            f"loses {A.STORAGE_LOSS_PCT:.0%}; interest runs for the extra {timing['months_later']} months."]
     ev = [signed(e) for e in ev]
     return signed(AssessmentResult(
         case_id=case_id, crop=crop, area_ha=inp.area_ha, expected_yield_kg_per_ha=inp.expected_yield_kg_per_ha,
@@ -151,5 +178,61 @@ def assess(case_id: str, case: HouseholdCase, crop: str, package: dict, terms: C
         risk_band=RiskBand(fin.risk_band_from_pd(pd_)),
         feature_values={k: round(v, 4) for k, v in feats.items()},
         feature_contributions={k: round(v, 4) for k, v in contrib.items()},
-        assumptions=A.describe(crop), risk_model_version=risk_model.version, assessed_at=AS_OF, evidence=ev,
+        assumptions=assumptions, risk_model_version=risk_model.version, assessed_at=AS_OF, repayment_timing=timing,
+        break_even_price_fcfa_per_kg=be_base, stress_break_even_price_fcfa_per_kg=be_stress, evidence=ev,
     ))
+
+
+MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+          "November", "December"]
+
+
+def repayment_timing(case: HouseholdCase, crop: str, package: dict, terms: CreditTerms, weather: WeatherSignal,
+                     market: MarketSignal, s) -> dict | None:
+    """If the household repays when it sells at today's (often harvest-time) price, compare with repaying in the
+    month, up to MAX_DEFERRAL_MONTHS later, when prices have usually been highest. Needs a multi-year monthly
+    price history; returns None otherwise (e.g. the synthetic weekly feed) or when no later month is usually higher."""
+    mm, ts, price = market.monthly_median_fcfa_per_kg, market.observation_timestamp, market.latest_price_fcfa_per_kg
+    if len(mm) < 10 or ts is None or price is None or str(ts.month) not in mm:
+        return None
+    m0 = ts.month
+    cands = []
+    for k in range(1, A.MAX_DEFERRAL_MONTHS + 1):
+        m = (m0 - 1 + k) % 12 + 1
+        if str(m) in mm:
+            cands.append((mm[str(m)] / mm[str(m0)], -k, m))
+    if not cands:
+        return None
+    ratio, neg_k, m_best = max(cands)
+    if ratio <= 1.0 + A.STORAGE_LOSS_PCT:
+        return None  # prices do not usually recover enough to pay for storage
+    k = -neg_k
+    p_def = round(price * ratio * (1 - A.STORAGE_LOSS_PCT), 2)
+    terms_d = terms.model_copy(update={"tenor_months": min(24, terms.tenor_months + k)})
+    inp_d, _, _ = financial_inputs(case, crop, package, terms_d, weather, p_def)
+    st = fin.run_all_stress_cases(inp_d, s.yield_shock_pct, s.price_shock_pct)
+    return {"price_month": MONTHS[m0 - 1], "price_now_fcfa_per_kg": price, "best_month": MONTHS[m_best - 1],
+            "months_later": k, "typical_price_ratio": round(ratio, 3), "expected_price_deferred": p_def,
+            "storage_loss_pct": A.STORAGE_LOSS_PCT, "tenor_months_deferred": terms_d.tenor_months,
+            "base_capacity_deferred": st[0]["repayment_capacity_ratio"],
+            "combined_capacity_deferred": st[3]["repayment_capacity_ratio"],
+            "basis": f"median monthly prices at {market.market_centre}, {market.seasonal_years}"}
+
+
+def break_even_prices(case: HouseholdCase, crop: str, package: dict, terms: CreditTerms, weather: WeatherSignal,
+                      s, ceiling: float = 2000.0) -> tuple[float | None, float | None]:
+    """Crop price (FCFA/kg) at which repayment capacity is exactly 1.0x: in the base case, and in the combined-shock
+    case (so the price before the stress test's price fall). None if not reachable below `ceiling`."""
+    def capacity(price: float, scenario: int) -> float:
+        inp, _, _ = financial_inputs(case, crop, package, terms, weather, price)
+        return fin.run_all_stress_cases(inp, s.yield_shock_pct, s.price_shock_pct)[scenario]["repayment_capacity_ratio"]
+
+    def solve(scenario: int) -> float | None:
+        lo, hi = 1.0, ceiling
+        if capacity(hi, scenario) < 1.0:
+            return None
+        for _ in range(40):
+            mid = (lo + hi) / 2
+            lo, hi = (mid, hi) if capacity(mid, scenario) < 1.0 else (lo, mid)
+        return round(hi, 0)
+    return solve(0), solve(3)

@@ -110,7 +110,8 @@ class Toolbox:
         return out
 
     async def read_policy(self, node: str) -> ToolOutcome:
-        path = str(Path(get_settings().fs_mcp_root).resolve() / "policy" / "agent_policy.json")
+        s = get_settings()
+        path = str(Path(s.fs_mcp_root).resolve() / "policy" / s.policy_file)
         r = await self.call("filesystem", "read_text_file", {"path": path}, node=node)
         if r.ok:
             try:

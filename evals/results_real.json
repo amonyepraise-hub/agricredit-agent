@@ -1,0 +1,536 @@
+{
+  "metrics": {
+    "cases": 30,
+    "drafted": 30,
+    "rule_violations": 0,
+    "seasonal_flag_errors": 0,
+    "narratives_contradicting_findings": 0,
+    "llm_narratives_kept": "n/a (offline stub, no language model)",
+    "repayment_timing_computed": 22,
+    "reproducible": true,
+    "recommendations": {
+      "RECOMMEND_WITH_CONDITIONS": 3,
+      "NO_RECOMMENDATION": 22,
+      "REDUCE_CREDIT_AMOUNT": 5
+    },
+    "source_coverage": {
+      "ERA5 rainfall": 30,
+      "NASA POWER cross-check": 30,
+      "WFP prices": 30,
+      "Official commune yields": 30
+    },
+    "elapsed_s": 98.4
+  },
+  "cases": [
+    {
+      "case_id": "BEN-2001",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "RECOMMEND_WITH_CONDITIONS",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": false,
+      "hash": "289aa675899f9de5db0e2cc28576da7bb8d7b35e06f76702f241179b75676866"
+    },
+    {
+      "case_id": "BEN-2002",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "NO_RECOMMENDATION",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": true,
+      "hash": "a57e2d9d029b9a218065115367379a65bea2df976b73f599ac635358819f0924"
+    },
+    {
+      "case_id": "BEN-2003",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "NO_RECOMMENDATION",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": true,
+      "hash": "fc7775a4cca4b5480867551b925debd4c430933fae8734deb634a6904f4afaba"
+    },
+    {
+      "case_id": "BEN-2004",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "NO_RECOMMENDATION",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": false,
+      "hash": "464651e3b48303a7f406479b855eef84290b140e5da70baec2fb97fc0fb2e30f"
+    },
+    {
+      "case_id": "BEN-2005",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "RECOMMEND_WITH_CONDITIONS",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": false,
+      "hash": "3a926cf42f80f0be53be68e4e8da25e63567ce931607d3b1a48698cabb6465b6"
+    },
+    {
+      "case_id": "BEN-2006",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "NO_RECOMMENDATION",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": true,
+      "hash": "4394bc885feaa82782bc6dfa25680c990898b3bb468a9f6593466f2b4b7dcab6"
+    },
+    {
+      "case_id": "BEN-2007",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "REDUCE_CREDIT_AMOUNT",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": true,
+      "hash": "8f336cc661f381b645d2bff526bb7727160c9cb8d066df54fca7d48a23524d32"
+    },
+    {
+      "case_id": "BEN-2008",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "NO_RECOMMENDATION",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": false,
+      "hash": "ffd511aaf4bb6b3c362fee7feb9e7f7e603121da1e9e97535ea9a5f7cc48a763"
+    },
+    {
+      "case_id": "BEN-2009",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "REDUCE_CREDIT_AMOUNT",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": true,
+      "hash": "4f87e3b0d9482953d1d199b17658d815d2cbeccd4a477ed12634690490a410cd"
+    },
+    {
+      "case_id": "BEN-2010",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "RECOMMEND_WITH_CONDITIONS",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": false,
+      "hash": "48c9cc89aa4762665e274bb6b85449a1a3a50854bed6dc4b9c966e365c5d467b"
+    },
+    {
+      "case_id": "BEN-2011",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "NO_RECOMMENDATION",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": true,
+      "hash": "82d30b029625fc3f69c08f520c1619a4eda73a58d9268d40e777c33cb01d2bc7"
+    },
+    {
+      "case_id": "BEN-2012",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "NO_RECOMMENDATION",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": false,
+      "hash": "2173e40bcf520420d2e60382f724fddc1159a26b703d41ee1597ea2ce353ae79"
+    },
+    {
+      "case_id": "BEN-2013",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "REDUCE_CREDIT_AMOUNT",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": false,
+      "hash": "069e948db2b297ba6efdc50d7857567ce3b10679fe73e0118d8e48918b092e35"
+    },
+    {
+      "case_id": "BEN-2014",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "NO_RECOMMENDATION",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": true,
+      "hash": "832a9fc7e25b0a6647079da295d62539ce0e1ef0cf4197f605bdd8526ae92ec6"
+    },
+    {
+      "case_id": "BEN-2015",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "NO_RECOMMENDATION",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": false,
+      "hash": "564638a482318cf95a78266380fb7ae8fa07daf35ead03ef81fb1adbdfbae362"
+    },
+    {
+      "case_id": "BEN-2016",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "REDUCE_CREDIT_AMOUNT",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": true,
+      "hash": "1e29923b4e86ef5e69320540706bf21890d31bf2c6a070c64225174a387259d9"
+    },
+    {
+      "case_id": "BEN-2017",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "NO_RECOMMENDATION",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": true,
+      "hash": "03382592f5511397cde40350b96bac0ed222939768d6983ef8fc46d63ea63fec"
+    },
+    {
+      "case_id": "BEN-2018",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "NO_RECOMMENDATION",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": true,
+      "hash": "45809e44264e1868e639aac26b4e9eda6db942fb0282e2695cb44d984d5b5442"
+    },
+    {
+      "case_id": "BEN-2019",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "NO_RECOMMENDATION",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": true,
+      "hash": "721d9d80981953067c446ba5bc86f02daae87d668ee490482cbdc4e66f48b265"
+    },
+    {
+      "case_id": "BEN-2020",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "NO_RECOMMENDATION",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": true,
+      "hash": "f58863ea6b1d3e60f6f21c63431d297300349b27a297e541f7d0d15fd60417e9"
+    },
+    {
+      "case_id": "BEN-2021",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "NO_RECOMMENDATION",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": true,
+      "hash": "6023d98f6ffb9da0e2c8d24ee2e2b5b71ef279bdebd7caa3c90b233d09a2766c"
+    },
+    {
+      "case_id": "BEN-2022",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "NO_RECOMMENDATION",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": true,
+      "hash": "f7947bdcc06b80b65ffe7200a0235f4429897cff6d6490d7752e9e3fb8f8b3f9"
+    },
+    {
+      "case_id": "BEN-2023",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "NO_RECOMMENDATION",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": true,
+      "hash": "a821481f6525fc7b0bea94c5e3548a86c207f53c8eb8ca8b72e7b623f6af8c08"
+    },
+    {
+      "case_id": "BEN-2024",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "NO_RECOMMENDATION",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": true,
+      "hash": "be190b02b2c0f973a61f13916f28c4453ee51805230674be9b18465c977f3645"
+    },
+    {
+      "case_id": "BEN-2025",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "NO_RECOMMENDATION",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": true,
+      "hash": "672ad3f8fc73cc8d35916d19cfc3e99dffa7cb6fc668715c8dc4e01263ab40a4"
+    },
+    {
+      "case_id": "BEN-2026",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "NO_RECOMMENDATION",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": true,
+      "hash": "fb2e404dcc44f011fff49623628bb300ce91d93908e810c61f22bc2c056fa070"
+    },
+    {
+      "case_id": "BEN-2027",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "NO_RECOMMENDATION",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": true,
+      "hash": "3436020abe94c07b44ab0ad3e91fc49a1c45117a85d2c4f7482f28d9887fd80c"
+    },
+    {
+      "case_id": "BEN-2028",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "NO_RECOMMENDATION",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": true,
+      "hash": "f20aa2f14d49f3ea60305ca270b8df298df3099047a71c2da3238c037d232037"
+    },
+    {
+      "case_id": "BEN-2029",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "REDUCE_CREDIT_AMOUNT",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": true,
+      "hash": "4d273069c083b0309c13bfd79a003bffb44a6b84090655fff5417dc497dc544d"
+    },
+    {
+      "case_id": "BEN-2030",
+      "status": "AWAITING_APPROVAL",
+      "recommendation": "NO_RECOMMENDATION",
+      "sources_cited": {
+        "ERA5 rainfall": true,
+        "NASA POWER cross-check": true,
+        "WFP prices": true,
+        "Official commune yields": true
+      },
+      "rule_ok": true,
+      "seasonal_flag_ok": true,
+      "claims": [],
+      "narrative_author": "offline-stub:deterministic-v1 (NOT an LLM)",
+      "timing": true,
+      "hash": "a05554e75fbb1a2db89e2c387a6ff48bb979082f3c82a88524a528aaddb44cf5"
+    }
+  ]
+}

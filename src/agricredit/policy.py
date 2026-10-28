@@ -22,14 +22,17 @@ PERMISSIVENESS = {
 
 def load_policy_file() -> dict:
     """Server-side read of the same policy file the agent reads via the filesystem MCP server."""
-    return json.loads((Path(get_settings().fs_mcp_root) / "policy" / "agent_policy.json").read_text())
+    s = get_settings()
+    return json.loads((Path(s.fs_mcp_root) / "policy" / s.policy_file).read_text())
 
 
 def decide(assessment: dict | None, blocking_gaps: list[str], warnings: list[str], requested_amount: float,
            policy: dict, weather_from_cache: bool = False) -> dict:
     out = _decide(assessment, blocking_gaps, warnings, requested_amount, policy, weather_from_cache)
     if warnings and out["recommendation"] not in (R.REQUEST_MORE_EVIDENCE, R.RECOMMEND_WITH_CONDITIONS):
-        out["officer_action"] += " Before approval, also resolve: " + "; ".join(warnings) + "."
+        # Warnings include market-wide conditions (a price fall, a dry season) that an officer cannot "resolve", only
+        # weigh, so they are listed as points to take into account.
+        out["officer_action"] += " Before approval, also take into account: " + "; ".join(warnings) + "."
     return out
 
 
@@ -58,21 +61,39 @@ def _decide(assessment: dict | None, blocking_gaps: list[str], warnings: list[st
                     "Do not offer this credit. Discuss non-credit support (extension visit, savings group) with the household.", conf)
     if base < 1.0 or comb < d["min_combined_capacity_for_recommend"]:
         optimistic = base >= 1.0
+        t = a.get("repayment_timing")
+        deferred_ok = bool(d.get("allow_deferred_repayment") and t
+                           and t["base_capacity_deferred"] >= d["min_base_capacity_for_recommend"]
+                           and t["combined_capacity_deferred"] >= d["min_combined_capacity_for_recommend"])
+        later = (f" If repayment were due in {t['best_month']} ({t['months_later']} months later), when prices have usually "
+                 f"been {t['typical_price_ratio']:.2f} times today's, capacity would be {t['base_capacity_deferred']:.2f}x base and "
+                 f"{t['combined_capacity_deferred']:.2f}x under the combined shock.") if deferred_ok else ""
         if reducible:
             return _out(R.REDUCE_CREDIT_AMOUNT, max_ok, optimistic,
                         f"At {requested_amount:,.0f} FCFA, repayment capacity is {base:.2f}x base and {comb:.2f}x under the combined "
-                        f"shock. A scaled package of about {max_ok:,.0f} FCFA keeps combined-shock capacity at or above 1.0x.",
-                        f"Discuss a reduced package of about {max_ok:,.0f} FCFA with the household before any approval.", conf)
+                        f"shock. A scaled package of about {max_ok:,.0f} FCFA keeps combined-shock capacity at or above 1.0x." + later,
+                        f"Discuss a reduced package of about {max_ok:,.0f} FCFA with the household before any approval."
+                        + (f" Alternative: keep the full package with repayment scheduled for {t['best_month']}." if deferred_ok else ""),
+                        conf)
+        if deferred_ok:
+            return _out(R.RECOMMEND_WITH_CONDITIONS, None, True,
+                        f"Repaid at today's price, capacity is {base:.2f}x base and {comb:.2f}x under the combined shock." + later,
+                        f"Approve only with repayment scheduled for {t['best_month']} and safe storage of the harvest (for example "
+                        "through warrantage / inventory credit). This relies on the usual seasonal price recovery.", conf - 0.1)
         if optimistic and base >= d["min_base_capacity_for_recommend"] and pd_ < d["pd_no_recommendation_min"]:
             return _out(R.RECOMMEND_WITH_CONDITIONS, None, True,
                         f"Repayment capacity is {base:.2f}x in the base case but only {comb:.2f}x under the combined shock: the "
                         "credit is viable only under optimistic assumptions and no smaller package restores stress viability.",
                         "Approve only with explicit acknowledgement of stress-case shortfall and a contingency (crop insurance, "
                         "repayment rescheduling clause, or group guarantee).", conf - 0.1)
+        be = a.get("stress_break_even_price_fcfa_per_kg")
         return _out(R.NO_RECOMMENDATION, None, optimistic,
                     f"Repayment capacity is {base:.2f}x base and {comb:.2f}x under the combined shock, and no package of at least "
-                    f"{d['min_reduced_offer_fcfa']:,.0f} FCFA is serviceable under stress.",
-                    "Do not offer this credit at any tested size.", conf)
+                    f"{d['min_reduced_offer_fcfa']:,.0f} FCFA is serviceable under stress."
+                    + (f" The loan would pass the stress test if the crop sold for about {be:,.0f} FCFA/kg or more." if be else ""),
+                    "Do not offer this credit at any tested size." + (
+                        f" Reconsider if prices recover to about {be:,.0f} FCFA/kg, or offer non-credit support." if be else ""),
+                    conf)
     clean = (pd_ < d["pd_recommend_max"] and base >= d["min_base_capacity_for_recommend"] and not warnings)
     if clean:
         return _out(R.RECOMMEND, None, False,
@@ -87,7 +108,7 @@ def _decide(assessment: dict | None, blocking_gaps: list[str], warnings: list[st
     why += warnings
     return _out(R.RECOMMEND_WITH_CONDITIONS, None, False,
                 f"Serviceable under stress ({comb:.2f}x combined shock), but: " + "; ".join(why) + ".",
-                "Resolve the listed warnings before approval: " + "; ".join(warnings) if warnings
+                "Before approval, check or take into account the listed warnings: " + "; ".join(warnings) if warnings
                 else "Approve only with conditions addressing the elevated risk.", conf)
 
 

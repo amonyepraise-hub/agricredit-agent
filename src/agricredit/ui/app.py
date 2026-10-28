@@ -17,11 +17,12 @@ import altair as alt  # noqa: E402
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
+from agricredit.agent.graph import translate_explanation  # noqa: E402
 from agricredit.agent.runner import AgentRunner  # noqa: E402
 from agricredit.approval import gate  # noqa: E402
 from agricredit.audit.logger import read_jsonl  # noqa: E402
 from agricredit.config import AS_OF, get_settings  # noqa: E402
-from agricredit.db import list_cases, list_officers  # noqa: E402
+from agricredit.db import data_sources, list_cases, list_officers  # noqa: E402
 from agricredit.models.schemas import ApprovalDecision  # noqa: E402
 
 st.set_page_config(page_title="AgriCredit Agent", page_icon="🌾", layout="wide")
@@ -61,7 +62,17 @@ runner = get_runner()
 # ---------------------------------------------------------------- 1. case selection (sidebar)
 with st.sidebar:
     st.markdown("## 🌾 AgriCredit Agent")
-    st.caption("Evidence-first input-credit advisory for extension officers. **All household data is synthetic.**")
+    real_sources = data_sources()
+    if real_sources:
+        st.caption("Evidence-first input-credit advisory for extension officers.")
+        st.success("**Real open data mode.** Rainfall (NASA POWER, ERA5), market prices (WFP), official commune "
+                   "yields (DSA via HarvestStat) and fertiliser prices are real. Households and their loans are "
+                   "simulated inside real communes.")
+        with st.expander("Data sources and licences"):
+            for src in real_sources:
+                st.markdown(f"- [{src['name']}]({src['url']}): {src['publisher']} · {src['licence']}")
+    else:
+        st.caption("Evidence-first input-credit advisory for extension officers. **All household data is synthetic.**")
     if s.is_open_weight_backend:
         st.success(f"Model: {s.model_version}")
     else:
@@ -72,6 +83,9 @@ with st.sidebar:
     case_id = st.selectbox("1 · Select a case", list(labels), format_func=lambda k: labels[k],
                            index=list(labels).index("BEN-0421") if "BEN-0421" in labels else 0)
     st.caption(f"Scenario: {tags[case_id]}")
+    lang = st.radio("Explanation language", ["English", "Français"], horizontal=True,
+                    index=1 if s.advisory_language == "fr" else 0,
+                    help="Language of the model-written explanation. Figures and the recommendation do not change.")
     st.markdown("**Deliberate data problem (demo)**")
     outage = st.checkbox("Simulate rainfall-service outage for this case's zone",
                          help="Sets AGRICREDIT_FAULTS=weather_unavailable:<zone> for this run only.")
@@ -84,6 +98,7 @@ with st.sidebar:
             except Exception:
                 zone = None
         os.environ["AGRICREDIT_FAULTS"] = f"weather_unavailable:{zone}" if zone else ""
+        os.environ["AGRICREDIT_ADVISORY_LANGUAGE"] = "fr" if lang == "Français" else "en"
         with st.spinner("Agent is gathering evidence through MCP tools..."):
             try:
                 state = runner.start(case_id)
@@ -205,8 +220,22 @@ if adv:
         st.error(f"Missing evidence: {g}")
     for w in adv["data_quality_warnings"]:
         st.warning(w)
-    with st.expander(f"Explanation (written by {adv['narrative_author']})", expanded=True):
-        st.write(adv["narrative"])
+    src_lang = state.get("narrative_language", "en")
+    other = "en" if src_lang == "fr" else "fr"
+    show_other = st.toggle("Show the explanation in English" if other == "en" else "Afficher l'explication en français",
+                           key=f"translate-{run_id}")
+    text, author = adv["narrative"], adv["narrative_author"]
+    if show_other:
+        cache = st.session_state.setdefault("translations", {})
+        key = (run_id, adv["recommendation_hash"], other)
+        if key not in cache:
+            with st.spinner("Translating with the open-weight model..." if s.is_open_weight_backend else "Translating..."):
+                cache[key] = translate_explanation(state, other)
+        text, author = cache[key]
+    with st.expander(f"Explanation (written by {author})", expanded=True):
+        st.write(text)
+        if show_other:
+            st.caption("Reading translation only. The draft the officer approves keeps the original text.")
     with st.expander("Assumptions"):
         for x in adv["assumptions"]:
             st.markdown(f"- {x}")

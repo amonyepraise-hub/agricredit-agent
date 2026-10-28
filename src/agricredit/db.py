@@ -39,7 +39,7 @@ def write_conn() -> Iterator[sqlite3.Connection]:
 
 
 def source_uri(table: str, key: str) -> str:
-    return f"sqlite://data/agricredit.db/{table}/{key}"
+    return f"sqlite://data/{db_path().name}/{table}/{key}"
 
 
 def get_case_row(case_id: str) -> dict | None:
@@ -74,3 +74,11 @@ def get_officer(officer_id: str) -> dict | None:
 def list_officers() -> list[dict]:
     with read_conn() as c:
         return [dict(r) for r in c.execute("SELECT * FROM officers WHERE active = 1 ORDER BY officer_id")]
+
+
+def data_sources() -> list[dict]:
+    """Public sources behind this store (real-open-data mode); empty for the synthetic store."""
+    with read_conn() as c:
+        if c.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'data_sources'").fetchone() is None:
+            return []
+        return [dict(r) for r in c.execute("SELECT * FROM data_sources ORDER BY source_key")]

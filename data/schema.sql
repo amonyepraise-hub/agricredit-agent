@@ -1,5 +1,7 @@
 -- AgriCredit Agent SQLite schema.
 -- Every row produced by generate_synthetic_data.py is SYNTHETIC (see data/README.md).
+-- The real-open-data mode (python -m agricredit.opendata build) fills the same tables, plus the
+-- locations / commune_yields / weather_crosscheck / data_sources tables, from public sources.
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE households (
@@ -56,7 +58,8 @@ CREATE TABLE weather_observations (
     crop_calendar_signal  TEXT NOT NULL,
     observation_timestamp TEXT NOT NULL,
     retrieval_timestamp   TEXT NOT NULL,
-    source_dataset        TEXT NOT NULL
+    source_dataset        TEXT NOT NULL,
+    source_url            TEXT                    -- set in real-open-data mode: where the observation came from
 );
 CREATE TABLE market_prices (
     price_id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,7 +68,8 @@ CREATE TABLE market_prices (
     price_fcfa_per_kg     REAL NOT NULL,
     observation_timestamp TEXT NOT NULL,
     retrieval_timestamp   TEXT NOT NULL,
-    source_dataset        TEXT NOT NULL
+    source_dataset        TEXT NOT NULL,
+    source_url            TEXT
 );
 CREATE TABLE input_packages (
     package_id                TEXT PRIMARY KEY,
@@ -133,6 +137,47 @@ CREATE TABLE release_outbox (
     approval_id  TEXT NOT NULL UNIQUE,            -- one release per approval: replay protection
     payload_json TEXT NOT NULL,
     released_at  TEXT NOT NULL
+);
+-- Real-open-data mode only (empty in the synthetic store) ------------------------------------
+CREATE TABLE locations (
+    location_id TEXT PRIMARY KEY,          -- BEN-LOC-NN, one per commune
+    fnid        TEXT NOT NULL UNIQUE,      -- FEWS NET / HarvestStat commune identifier
+    name        TEXT NOT NULL,
+    admin_1     TEXT NOT NULL,
+    lat         REAL NOT NULL,
+    lon         REAL NOT NULL,
+    zone        TEXT NOT NULL
+);
+CREATE TABLE commune_yields (
+    fnid            TEXT NOT NULL,
+    crop            TEXT NOT NULL,
+    harvest_year    INTEGER NOT NULL,
+    area_ha         REAL NOT NULL,
+    production_t    REAL NOT NULL,
+    yield_kg_per_ha REAL NOT NULL,
+    source_dataset  TEXT NOT NULL,
+    source_url      TEXT NOT NULL,
+    PRIMARY KEY (fnid, crop, harvest_year)
+);
+CREATE TABLE weather_crosscheck (
+    crosscheck_id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    location_id           TEXT NOT NULL,
+    crop                  TEXT NOT NULL,
+    season                TEXT NOT NULL,
+    rainfall_mm           REAL NOT NULL,
+    rainfall_anomaly_pct  REAL NOT NULL,
+    seasonal_baseline_mm  REAL NOT NULL,
+    observation_timestamp TEXT NOT NULL,
+    source_dataset        TEXT NOT NULL,
+    source_url            TEXT NOT NULL
+);
+CREATE TABLE data_sources (
+    source_key   TEXT PRIMARY KEY,
+    name         TEXT NOT NULL,
+    publisher    TEXT NOT NULL,
+    licence      TEXT NOT NULL,
+    url          TEXT NOT NULL,
+    retrieved_at TEXT NOT NULL
 );
 CREATE INDEX idx_plots_hh ON plots(household_id);
 CREATE INDEX idx_yield_hh ON yield_history(household_id);

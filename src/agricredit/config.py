@@ -57,6 +57,16 @@ class Settings:
     log_dir: str = field(default_factory=lambda: _path("AGRICREDIT_LOG_DIR", REPO_ROOT / "logs"))
     risk_model_path: str = field(default_factory=lambda: _path("AGRICREDIT_RISK_MODEL_PATH", REPO_ROOT / "data" / "risk_model.joblib"))
     fs_mcp_root: str = field(default_factory=lambda: _path("AGRICREDIT_FS_MCP_ROOT", REPO_ROOT / "fs_mcp_root"))
+    # Language of the advisory explanation: "en" or "fr" (Benin's extension services work in French).
+    advisory_language: str = field(default_factory=lambda: os.getenv("AGRICREDIT_ADVISORY_LANGUAGE", "en").strip().lower()[:2])
+    # Policy file name inside <fs_mcp_root>/policy/. The real-open-data mode uses agent_policy_real.json.
+    policy_file: str = field(default_factory=lambda: os.getenv("AGRICREDIT_POLICY_FILE", "agent_policy.json"))
+
+    # Freshness limits (days). Defaults suit the synthetic weekly feeds; real WFP prices are monthly and
+    # published with a lag, so the real-open-data mode raises the market limit (see run_demo.sh --real).
+    repayment_freshness_days: float = field(default_factory=lambda: _float("AGRICREDIT_REPAYMENT_FRESHNESS_DAYS", 30.0))
+    market_freshness_days: float = field(default_factory=lambda: _float("AGRICREDIT_MARKET_FRESHNESS_DAYS", 14.0))
+    weather_freshness_days: float = field(default_factory=lambda: _float("AGRICREDIT_WEATHER_FRESHNESS_DAYS", 7.0))
 
     yield_shock_pct: float = field(default_factory=lambda: _float("AGRICREDIT_YIELD_SHOCK_PCT", 0.20))
     price_shock_pct: float = field(default_factory=lambda: _float("AGRICREDIT_PRICE_SHOCK_PCT", 0.10))
