@@ -59,15 +59,14 @@ def test_dashboard_requires_sign_in_and_binds_approval_to_officer(users, monkeyp
     at.text_input[1].set_value("long-enough-pass")
     at.button[0].click().run()
     assert not at.exception, at.exception
-    at.selectbox[0].set_value("BEN-0001").run()
-    next(b for b in at.button if "Run agent" in b.label).click().run()
+    at.button(key="open-BEN-0001").click().run()
+    at.button(key="run").click().run()
     assert not at.exception, at.exception
     md = " ".join(m.value for m in at.markdown)
-    assert "OFF-002" in md and "signed in" in md
-    next(r for r in at.radio if r.label == "Decision").set_value("APPROVE")
-    next(b for b in at.button if "Record decision" in b.label).click().run()
+    assert "OFF-002" in md and "Your name is recorded with your decision" in md
+    at.button(key="approve").click().run()
     assert not at.exception, at.exception
-    assert any("all approval checks passed" in s.value for s in at.success)
+    assert any("ready to send to the farmer" in s.value for s in at.success)
 
 
 def test_demo_engine_choice_runs_fast_mode_without_leaking_settings(monkeypatch):
@@ -77,10 +76,10 @@ def test_demo_engine_choice_runs_fast_mode_without_leaking_settings(monkeypatch)
     monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:9")  # nothing listens: fast mode must not need it
     at = AppTest.from_file(APP, default_timeout=120).run()
     assert not at.exception
-    engine = next(sb for sb in at.selectbox if sb.label == "Who writes the explanation")
+    engine = next(r for r in at.radio if r.label == "Who writes the explanation")
     engine.set_value("fast").run()
-    next(sb for sb in at.selectbox if sb.label == "1 · Select a case").set_value("BEN-0001").run()
-    next(b for b in at.button if "Run agent" in b.label).click().run()
+    at.button(key="open-BEN-0001").click().run()
+    at.button(key="run").click().run()
     assert not at.exception, at.exception
-    assert "offline-stub" in " ".join(c.value for c in at.caption)
+    assert any("Fast mode" in c.value for c in at.caption)
     assert os.environ["AGRICREDIT_LLM_BACKEND"] == "ollama"  # per-run setting restored afterwards

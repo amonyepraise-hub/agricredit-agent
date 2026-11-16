@@ -169,9 +169,17 @@ The committed `logs/` and `EVALS.md` come from runs with the **offline stub**, a
   - Everything except the two model calls (MCP tools, risk model, stress tests, checks, release gate) takes about 2 s.
 - The 1.5B model writes noticeably weaker explanations than 7B. Figures and the recommendation type do not depend on the model, so they are identical.
 
-## Dashboard
+## Dashboard (officer desk)
 
-Eight panels, in reading order: case selection (sidebar, including a toggle that simulates a rainfall-service outage); **what the agent did** (each graph step and the MCP tool it called); **evidence retrieved** (kind, record ID, observation date, staleness); **risk assessment** (score, PD, capacity, and the features driving the risk); **stress test**; **draft advisory** (recommendation, rationale, warnings, missing evidence, officer action, LLM explanation, assumptions, hashes); **officer decision**; **audit trail**. The three-minute walkthrough is in [`docs/DEMO.md`](docs/DEMO.md).
+A plain-language desk for extension officers and microfinance credit officers, with no internal codes on screen:
+
+1. **Loan requests**: every request as a card (commune, crop, farm size, amount, status), with search and filters, and the season's most notable cases first.
+2. **Live review**: the officer presses *Review with AgriCredit* and watches each step tick off as the agent works (rules, farmer history, rainfall, market price, repayment calculation, cross-checks, drafting).
+3. **Verdict and reasons**: a coloured verdict (*Lend*, *Lend, with conditions*, *Lend a smaller amount*, *More information needed*, *Do not lend this season*), the reasons in plain sentences, and *what to do next*.
+4. **Evidence, bad-season test and the farmer**: rainfall vs normal, the market price against its usual month, expected harvest, what the loan buys, the four-season stress chart, past loans and harvests. Every card links to its public source.
+5. **Decision**: the signed-in officer approves or declines (a reason is required to decline); the release then shows the twelve safety checks in plain words.
+
+The full technical record (agent steps, MCP tool calls, cited evidence with source URIs, audit trail, advice fingerprint) stays one click away under *Technical record*. Settings hold the explanation language, the AI writer (Qwen or the instant standard wording on the hosted demo) and a demo switch that simulates a rainfall-service outage.
 
 ## Usage
 
