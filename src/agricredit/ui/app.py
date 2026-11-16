@@ -416,7 +416,7 @@ def decision_panel(state: dict, run_id: str):
                 off = st.selectbox("Acting as", list_officers(),
                                    format_func=lambda o: f"{H.person(o['officer_name'])} ({o['officer_id']})")
             b1, b2 = st.columns(2)
-            label = "✅ Confirm this advice" if rec == "NO_RECOMMENDATION" else "✅ Approve this advice"
+            label = "✅ Confirm advice" if rec == "NO_RECOMMENDATION" else "✅ Approve advice"
             if b1.button(label, type="primary", key="approve", width="stretch"):
                 decide(state, run_id, off, ApprovalDecision.APPROVE, None)
             if b2.button("Decline", key="decline", width="stretch"):
