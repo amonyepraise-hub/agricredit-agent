@@ -108,6 +108,9 @@ BASE_BACKEND = os.getenv("AGRICREDIT_LLM_BACKEND", "ollama")
 # Hosted demo: let the visitor choose Qwen or the instant template (only offered when Qwen is actually available).
 ENGINE_CHOICE = (os.getenv("AGRICREDIT_DEMO_ENGINE_CHOICE", "false").strip().lower() in {"1", "true", "yes", "on"}
                  and BASE_BACKEND != "stub")
+# One discreet line that says which records this workspace holds. A lender running on its own records sets
+# AGRICREDIT_WORKSPACE_LABEL to its branch name (or to an empty value).
+WORKSPACE_LABEL = os.getenv("AGRICREDIT_WORKSPACE_LABEL", "Demo workspace · sample farmer records")
 ENGINES = {"fast": "Fast mode — instant, standard wording", "qwen": "Qwen 2.5 7B — AI writes the explanation (slower)"}
 
 
@@ -177,7 +180,11 @@ with c_brand:
 with c_who:
     if signed_in:
         st.markdown(f'<div class="who">Signed in as <b>{H.person(signed_in["officer_name"])}</b> · '
-                    f'{signed_in["officer_id"]}</div>', unsafe_allow_html=True)
+                    f'{signed_in["officer_id"]}'
+                    + (f'<br><span class="muted">{WORKSPACE_LABEL}</span>' if WORKSPACE_LABEL else "") + '</div>',
+                    unsafe_allow_html=True)
+    elif WORKSPACE_LABEL:
+        st.markdown(f'<div class="who"><span class="muted">{WORKSPACE_LABEL}</span></div>', unsafe_allow_html=True)
 with c_menu:
     with st.popover("⚙️ Settings", width="stretch"):
         ss["lang"] = st.radio("Language of the written explanation", ["English", "Français"], horizontal=True,
@@ -193,7 +200,7 @@ with c_menu:
                 st.caption(note)
         else:
             st.caption(f"AI model: {'Qwen (open-weight, on this server)' if s.is_open_weight_backend else 'off — standard wording'}")
-        ss["outage"] = st.checkbox("Demo: pretend the rainfall service is down", value=ss.get("outage", False),
+        ss["outage"] = st.checkbox("Test: simulate a rainfall-service outage", value=ss.get("outage", False),
                                    help="Shows how AgriCredit copes when a data source fails.")
         if signed_in and st.button("Sign out", width="stretch"):
             ss.clear()
@@ -221,8 +228,8 @@ def inbox():
                 unsafe_allow_html=True)
     if data_sources():
         st.markdown(f'<div class="databar">🛰️ <b>Real Benin data</b>, updated {AS_OF:%d %B %Y}: satellite rainfall, '
-                    'WFP market prices, official crop yields and 2025/26 fertiliser prices. The farmers in this demo '
-                    'are simulated; their communes and markets are real.</div>', unsafe_allow_html=True)
+                    'WFP market prices, official crop yields and 2025/26 fertiliser prices for all 77 communes.</div>',
+                    unsafe_allow_html=True)
     k = st.columns(4)
     for col, (v, label) in zip(k, [(waiting, "requests waiting for you"), (decided, "decisions made"),
                                    (communes, "communes covered"), (markets, "markets tracked")]):
@@ -438,7 +445,6 @@ def decision_panel(state: dict, run_id: str):
             who = H.person((appr or {}).get("details", {}).get("officer_name")) if appr else ""
             if rel["released"]:
                 st.success(f"Approved{' by ' + who if who else ''}. The advice is ready to send to the farmer by SMS.")
-                st.caption("Demo: the message goes to a test outbox; nothing is sent to a real phone.")
             else:
                 st.error("The advice was NOT released: a safety check failed.")
             passed = sum(bool(v) for v in checks.values())
@@ -647,9 +653,6 @@ def farmer_tab(state: dict):
             df = pd.DataFrame([{"season": y["season"], "kg/ha": y["yield_kg_per_ha"]} for y in f["yields"]])
             st.altair_chart(alt.Chart(df).mark_bar(color=GOLD, cornerRadiusEnd=4, size=40).encode(
                 x=alt.X("season:N", title=None, axis=alt.Axis(labelAngle=0)), y=alt.Y("kg/ha:Q")).properties(height=180), width="stretch")
-    if h.get("synthetic"):
-        st.caption("This farmer is simulated for the demo: real repayment records are private. The commune, "
-                   "rainfall, prices and official yields are real.")
 
 
 def sources_tab():
