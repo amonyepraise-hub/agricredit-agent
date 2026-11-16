@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -17,6 +19,7 @@ import altair as alt  # noqa: E402
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
+from agricredit import auth  # noqa: E402
 from agricredit.agent.graph import translate_explanation  # noqa: E402
 from agricredit.agent.runner import AgentRunner  # noqa: E402
 from agricredit.approval import gate  # noqa: E402
@@ -48,6 +51,13 @@ def get_runner() -> AgentRunner:
     return AgentRunner()
 
 
+@st.cache_resource
+def run_lock() -> threading.Lock:
+    """One agent run at a time per server: runs set per-run environment (language, model, demo faults),
+    and on a shared server this keeps one officer's settings from leaking into another's run."""
+    return threading.Lock()
+
+
 def pill(text: str, style: str) -> str:
     return f'<span class="pill {style}">{text}</span>'
 
@@ -56,12 +66,69 @@ def fcfa(x) -> str:
     return "n/a" if x is None else f"{x:,.0f} FCFA"
 
 
+ENGINES = {"qwen": "Qwen 2.5 7B (open-weight AI writes the explanation)",
+           "fast": "Fast mode (fixed template, no AI writing)"}
+BASE_BACKEND = os.getenv("AGRICREDIT_LLM_BACKEND", "ollama")
+# Hosted demo: let the visitor choose Qwen or the instant template (only offered when Qwen is actually available).
+ENGINE_CHOICE = (os.getenv("AGRICREDIT_DEMO_ENGINE_CHOICE", "false").strip().lower() in {"1", "true", "yes", "on"}
+                 and BASE_BACKEND != "stub")
+
+
+def run_with_env(fn, env: dict):
+    """Run one agent segment with per-run environment, under the server-wide lock."""
+    with run_lock():
+        old = {k: os.environ.get(k) for k in env}
+        os.environ.update({k: v for k, v in env.items() if v is not None})
+        try:
+            return fn()
+        finally:
+            for k, v in old.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+
+
+# ---------------------------------------------------------------- 0. sign-in (hosted deployments)
+if auth.auth_required() and "officer" not in st.session_state:
+    st.markdown("## 🌾 AgriCredit Agent")
+    st.caption("Evidence-first input-credit advice for extension officers. Sign in with your officer account.")
+    fails = st.session_state.get("login_fails", 0)
+    wait = st.session_state.get("login_wait_until", 0) - time.time()
+    with st.form("login"):
+        username = st.text_input("Username", autocomplete="username")
+        password = st.text_input("Password", type="password", autocomplete="current-password")
+        submitted = st.form_submit_button("Sign in", type="primary")
+    if submitted:
+        if wait > 0:
+            st.error(f"Too many attempts. Try again in {int(wait) + 1} seconds.")
+        else:
+            officer = auth.authenticate(username, password)
+            if officer:
+                st.session_state["officer"] = officer
+                st.session_state["login_fails"] = 0
+                st.rerun()
+            fails += 1
+            st.session_state["login_fails"] = fails
+            if fails >= 5:
+                st.session_state["login_wait_until"] = time.time() + 30 * (fails - 4)
+            time.sleep(1)
+            st.error("Wrong username or password.")
+    st.stop()
+
 s = get_settings()
 runner = get_runner()
+signed_in = st.session_state.get("officer")
 
 # ---------------------------------------------------------------- 1. case selection (sidebar)
 with st.sidebar:
     st.markdown("## 🌾 AgriCredit Agent")
+    if signed_in:
+        c_who, c_out = st.columns([3, 2])
+        c_who.caption(f"Signed in: **{signed_in['officer_name']}** ({signed_in['officer_id']})")
+        if c_out.button("Sign out"):
+            st.session_state.clear()
+            st.rerun()
     real_sources = data_sources()
     if real_sources:
         st.caption("Evidence-first input-credit advisory for extension officers.")
@@ -73,7 +140,15 @@ with st.sidebar:
                 st.markdown(f"- [{src['name']}]({src['url']}): {src['publisher']} · {src['licence']}")
     else:
         st.caption("Evidence-first input-credit advisory for extension officers. **All household data is synthetic.**")
-    if s.is_open_weight_backend:
+    engine = None
+    if ENGINE_CHOICE:
+        engine = st.selectbox("Who writes the explanation", list(ENGINES), format_func=ENGINES.get,
+                              help="The evidence, the money maths, the recommendation and every safety check are "
+                                   "identical in both modes. Only the wording of the explanation changes.")
+        note = os.getenv("AGRICREDIT_QWEN_NOTE", "")
+        if engine == "qwen" and note:
+            st.caption(note)
+    elif s.is_open_weight_backend:
         st.success(f"Model: {s.model_version}")
     else:
         st.warning(f"Model backend: {s.model_version}. Set AGRICREDIT_LLM_BACKEND=ollama to use Qwen.")
@@ -97,14 +172,13 @@ with st.sidebar:
                 zone = get_household_case(next(c for c in cases if c["case_id"] == case_id)["household_id"]).location_id
             except Exception:
                 zone = None
-        os.environ["AGRICREDIT_FAULTS"] = f"weather_unavailable:{zone}" if zone else ""
-        os.environ["AGRICREDIT_ADVISORY_LANGUAGE"] = "fr" if lang == "Français" else "en"
+        run_env = {"AGRICREDIT_FAULTS": f"weather_unavailable:{zone}" if zone else "",
+                   "AGRICREDIT_ADVISORY_LANGUAGE": "fr" if lang == "Français" else "en",
+                   "AGRICREDIT_LLM_BACKEND": (BASE_BACKEND if engine == "qwen" else "stub") if engine else None}
         with st.spinner("Agent is gathering evidence through MCP tools..."):
-            try:
-                state = runner.start(case_id)
-            finally:
-                os.environ["AGRICREDIT_FAULTS"] = ""
+            state = run_with_env(lambda: runner.start(case_id), run_env)
         st.session_state["run_id"] = state["run_id"]
+        st.session_state.setdefault("run_env", {})[state["run_id"]] = run_env
     st.caption(f"Data clock: {AS_OF:%d %b %Y %H:%M}")
 
 run_id = st.session_state.get("run_id")
@@ -230,7 +304,9 @@ if adv:
         key = (run_id, adv["recommendation_hash"], other)
         if key not in cache:
             with st.spinner("Translating with the open-weight model..." if s.is_open_weight_backend else "Translating..."):
-                cache[key] = translate_explanation(state, other)
+                env = {k: v for k, v in st.session_state.get("run_env", {}).get(run_id, {}).items()
+                       if k == "AGRICREDIT_LLM_BACKEND"}
+                cache[key] = run_with_env(lambda: translate_explanation(state, other), env)
         text, author = cache[key]
     with st.expander(f"Explanation (written by {author})", expanded=True):
         st.write(text)
@@ -245,9 +321,13 @@ if adv:
 # ---------------------------------------------------------------- 7. approval
 st.markdown("#### 7 · Officer decision")
 if state.get("_waiting_for_officer") and adv:
-    officers = list_officers()
     with st.form("approval"):
-        off = st.selectbox("Officer", officers, format_func=lambda o: f"{o['officer_id']} · {o['officer_name']}")
+        if signed_in:
+            off = signed_in
+            st.markdown(f"Officer: **{off['officer_name']}** ({off['officer_id']}), signed in")
+        else:
+            off = st.selectbox("Officer", list_officers(),
+                               format_func=lambda o: f"{o['officer_id']} · {o['officer_name']}")
         decision = st.radio("Decision", ["APPROVE", "REJECT"], horizontal=True)
         reason = st.text_input("Reason (required to reject)")
         st.caption("Approving binds your name to this exact recommendation hash. If the evidence or recommendation "
@@ -260,7 +340,9 @@ if state.get("_waiting_for_officer") and adv:
                 payload = ({"action": "release", "approval": appr.model_dump(mode="json"),
                             "recommendation_hash": adv["recommendation_hash"]} if decision == "APPROVE"
                            else {"action": "terminate", "reason": reason})
-                runner.resume(run_id, payload)
+                env = {k: v for k, v in st.session_state.get("run_env", {}).get(run_id, {}).items()
+                       if k != "AGRICREDIT_FAULTS"}
+                run_with_env(lambda: runner.resume(run_id, payload), env)
                 st.rerun()
             except gate.ApprovalError as e:
                 st.error(str(e))

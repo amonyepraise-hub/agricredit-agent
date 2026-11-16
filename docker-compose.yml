@@ -1,14 +1,47 @@
-# Untested in the original build environment (see README "Docker"). Tested path: ./run_demo.sh
+# AgriCredit Agent for a lender's own computer: the officer dashboard plus a private Qwen model.
+#
+#   docker compose up -d --build        start (the first start downloads Qwen, about 4.7 GB)
+#   docker compose logs -f app          watch it start
+#   docker compose exec app python -m agricredit.auth add NAME --officer-id OFF-004 --name "Full Name"
+#   docker compose down                 stop (all data is kept in the named volumes)
+#
+# Officers open http://localhost:8501 on this computer, or http://<this computer's IP>:8501 on the
+# office network. Settings can be changed in a .env file next to this one (see deploy/lender.env.example).
+name: agricredit
+
 services:
-  agricredit:
-    build: .
-    ports:
-      - "8501:8501"
-    environment:
-      AGRICREDIT_LLM_BACKEND: ${AGRICREDIT_LLM_BACKEND:-ollama}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b-instruct}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+  ollama:
+    image: ollama/ollama:${OLLAMA_VERSION:-0.40.10}
+    restart: unless-stopped
     volumes:
-      - ./logs:/app/logs
+      - ollama-models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build: .
+    image: agricredit-agent:local
+    restart: unless-stopped
+    depends_on:
+      ollama:
+        condition: service_healthy
+    ports:
+      - "${AGRICREDIT_PORT:-8501}:8501"
+    environment:
+      AGRICREDIT_AUTH_REQUIRED: "true"
+      AGRICREDIT_LLM_BACKEND: ${AGRICREDIT_LLM_BACKEND:-ollama}
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b-instruct}
+      AGRICREDIT_LLM_TIMEOUT_S: ${AGRICREDIT_LLM_TIMEOUT_S:-600}
+      AGRICREDIT_OLLAMA_WAIT_S: "300"
+      AGRICREDIT_ADVISORY_LANGUAGE: ${AGRICREDIT_ADVISORY_LANGUAGE:-fr}
+      AGRICREDIT_BOOTSTRAP_USERS: ${AGRICREDIT_BOOTSTRAP_USERS:-}
+    volumes:
+      - agricredit-data:/app/var
+
+volumes:
+  ollama-models:
+  agricredit-data:

@@ -135,6 +135,13 @@ git clone <this repo> agricredit-agent && cd agricredit-agent
 
 Clone into the WSL home directory (`~`), not `/mnt/c/...`: the Windows drive is much slower from WSL.
 
+## Deploy it
+
+Two ready-made deployments, both with officer sign-in, are described step by step in [`docs/DEPLOY.md`](docs/DEPLOY.md):
+
+- **Public demo** on a free Hugging Face Space (`deploy/huggingface/`), for judges and partners to try.
+- **Lender install** with Docker on the lender's own computer: `docker compose up -d --build` starts the dashboard and a private Qwen model; farmer data never leaves that computer.
+
 ## Verification status
 
 Verified in two places: the build environment (a cloud sandbox without GPU, Docker Hub or model-host access) and a CPU-only Windows laptop running Ubuntu 24.04 under WSL 2 (7.7 GB RAM available to Linux, no GPU).
@@ -149,7 +156,7 @@ Verified in two places: the build environment (a cloud sandbox without GPU, Dock
 | Approval gate: unauthorized releases blocked, change voids approval | Verified | E11, E12, `tests/test_mcp_server.py` |
 | **Open-weight model completes a full task** | **Verified** (laptop) | `open_weight_runs/20261008T115750Z_BEN-0421/`: `qwen2.5:7b-instruct` via Ollama 0.40.1 on CPU planned the investigation and wrote the advisory narrative for case BEN-0421. Both LLM calls succeeded (planning about 3 min, narrative about 4.5 min); the officer approved and the gate released to the sandbox outbox. Transcript, model digest and that run's logs are in the folder. |
 | One-command run from a clean clone | Verified with `--cli` | Fresh clone in the sandbox (Python 3.13, Node 22) and on the laptop (WSL Ubuntu 24.04, Python 3.12, Node 22): 44 tests passed and the demo produced the same recommendation hash on both machines |
-| Docker | **Not verified** | Docker Hub was unreachable, so the image could not be built. `Dockerfile` and `docker-compose.yml` are provided but untested. |
+| Deployment (sign-in, Docker, hosted demo) | **Partly verified** | The container start-up (`deploy/entrypoint.sh`) and image build step (`deploy/build.sh`) were run outside Docker: real-data store built, account created from a secret, Qwen-unavailable fallback, data kept across a restart, and sign-in, run, approve and release in a browser. `tests/test_auth.py` covers accounts and sign-in. The Docker images themselves could not be built in the sandbox (Docker Hub blocked); see `docs/DEPLOY.md`. |
 
 The committed `logs/` and `EVALS.md` come from runs with the **offline stub**, and say so in every record. The open-weight evidence is the separate `open_weight_runs/` folder. In that run Qwen's plan chose a different market look-back window, which moved the maize price anomaly (−3.1% → −0.2% vs median) and the PD (0.071 → 0.070); the recommendation (REDUCE_CREDIT_AMOUNT, about 155,000 FCFA) and every stress figure were unchanged.
 
@@ -229,9 +236,9 @@ Household notes, market records and retrieved files are treated as untrusted dat
 - **No real messages are sent.** Release goes to a sandbox outbox; there is no SMS or USSD integration yet.
 - **Snapshots, not live feeds.** Real open data is downloaded into a dated snapshot, not queried live at each run. WFP prices are monthly and arrive one to two months late, and the latest official commune yields are for 2023.
 - **Speed on CPU.** Qwen 7B takes about 8 minutes per case on a CPU-only laptop; Qwen 1.5B takes about 2 minutes but writes weaker explanations.
-- **Single machine, no login.** Officers are picked from a list, without passwords. The checkpointer is in memory, so a paused case is lost if the app restarts.
-- **English only** in the dashboard and advisories.
-- **Docker files are untested** (see "Verification status").
+- **Sign-in is per deployment.** Docker and the hosted demo require officer accounts (see `docs/DEPLOY.md`); `./run_demo.sh` stays a single-user local mode where the officer is picked from a list. The agent's checkpointer is in memory, so a case paused for approval must be run again if the app restarts (approvals and released advice are stored in the database and survive).
+- **Dashboard labels in English.** Advisory explanations are available in English or French.
+- **Docker images not yet built in the build environment** (see "Verification status").
 
 ## Future improvements
 

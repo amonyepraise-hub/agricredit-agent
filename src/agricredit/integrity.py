@@ -21,8 +21,10 @@ def _key() -> bytes:
     env = os.getenv("AGRICREDIT_INTEGRITY_KEY")
     if env:
         return env.encode()
-    p = REPO_ROOT / "data" / ".integrity_key"
+    raw = os.getenv("AGRICREDIT_INTEGRITY_KEY_FILE")
+    p = Path(raw) if raw else REPO_ROOT / "data" / ".integrity_key"
     if not p.exists():
+        p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(secrets.token_hex(32))
         p.chmod(0o600)
     return p.read_text().strip().encode()
